@@ -1,0 +1,609 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+enum RoleInClass {
+  STUDENT
+  TEACHER
+  ASSISTANT
+}
+
+enum TrackLevel {
+  INTRODUCTORY
+  BASIC
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum MissionDifficulty {
+  INTRODUCTORY
+  BASIC
+  INTERMEDIATE
+  ADVANCED
+  CHALLENGE
+}
+
+enum MasteryStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  FAMILIAR
+  PROFICIENT
+  MASTERED
+  REVIEW
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum ExerciseType {
+  MULTIPLE_CHOICE
+  STATIC_TEXT
+}
+
+enum ReviewStatus {
+  PENDING
+  DONE
+  OVERDUE
+  SKIPPED
+}
+
+enum SimulationType {
+  TRACK
+  MODULE
+  REVIEW
+  DEMO_EXAM
+  MIXED
+}
+
+enum EngagementSeverity {
+  NORMAL
+  ATTENTION
+  HIGH_RISK
+}
+
+enum EngagementSignalType {
+  INACTIVE
+  MANY_ERRORS
+  ACTIVITY_DROP
+  OVERDUE_REVIEWS
+  ABANDONED_TRACK
+  MISSING_SIMULATION
+}
+
+model User {
+  id                   String             @id @default(cuid())
+  name                 String
+  email                String             @unique
+  passwordHash         String
+  role                 UserRole
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  lastLoginAt          DateTime?
+  profile              Profile?
+  sessions             Session[]
+  classMemberships     ClassMembership[]
+  exerciseAttempts     ExerciseAttempt[]
+  enrollments          Enrollment[]
+  missionProgresses    MissionProgress[]
+  skillProgresses      UserSkillProgress[]
+  reviewSchedules      ReviewSchedule[]
+  simulationAttempts   SimulationAttempt[]
+  xpTransactions       XPTransaction[]
+  badges               UserBadge[]
+  engagementSignals    EngagementSignal[]
+  teacherNotesAuthored TeacherNote[]      @relation("TeacherNotesAuthored")
+  teacherNotesReceived TeacherNote[]      @relation("TeacherNotesReceived")
+  activityLogs         ActivityLog[]
+  calendarEvents       CalendarEvent[]
+  studyNotes           StudyNote[]
+  pet                  Pet?
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Profile {
+  id                       String   @id @default(cuid())
+  userId                   String   @unique
+  avatarUrl                String?
+  bio                      String?
+  totalXp                  Int      @default(0)
+  level                    Int      @default(1)
+  streak                   Int      @default(0)
+  preferredExplanationMode String   @default("DETAILED")
+  /// Personalização visual do usuário (nível + tokens). Formato em src/lib/appearance/settings.ts.
+  appearance               Json?
+  user                     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ClassGroup {
+  id          String              @id @default(cuid())
+  name        String
+  description String
+  isDemo      Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  memberships ClassMembership[]
+  signals     EngagementSignal[]
+}
+
+model ClassMembership {
+  id           String      @id @default(cuid())
+  userId       String
+  classGroupId String
+  roleInClass  RoleInClass
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  classGroup   ClassGroup  @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, classGroupId])
+  @@index([classGroupId])
+}
+
+model Track {
+  id          String       @id @default(cuid())
+  title       String
+  slug        String       @unique
+  description String
+  area        String
+  level       TrackLevel
+  coverIcon   String
+  color       String
+  isPublic    Boolean      @default(true)
+  isDemo      Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  modules     Module[]
+  enrollments Enrollment[]
+  simulations Simulation[]
+}
+
+model Module {
+  id          String       @id @default(cuid())
+  trackId     String
+  title       String
+  slug        String
+  description String
+  order       Int
+  isDemo      Boolean      @default(true)
+  track       Track        @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  missions    Mission[]
+  simulations Simulation[]
+
+  @@unique([trackId, slug])
+  @@index([trackId])
+}
+
+model Mission {
+  id                    String                @id @default(cuid())
+  moduleId              String
+  title                 String
+  slug                  String
+  shortDescription      String
+  objective             String
+  quickExplanation      String
+  detailedExplanation   String
+  analogy               String
+  practicalExample      String
+  guidedExercisePrompt  String
+  challengePrompt       String
+  summary               String
+  attentionPoints       String[]
+  difficulty            MissionDifficulty
+  xpReward              Int
+  estimatedMinutes      Int
+  order                 Int
+  isDemo                Boolean               @default(true)
+  module                Module                @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  exercises             Exercise[]
+  progress              MissionProgress[]
+  reviews               ReviewSchedule[]
+  skills                MissionSkill[]
+  tags                  MissionTag[]
+  prerequisites         MissionPrerequisite[] @relation("MissionPrerequisites")
+  requiredBy            MissionPrerequisite[] @relation("MissionRequiredBy")
+
+  @@unique([moduleId, slug])
+  @@index([moduleId])
+}
+
+model MissionPrerequisite {
+  missionId      String
+  prerequisiteId String
+  mission        Mission @relation("MissionPrerequisites", fields: [missionId], references: [id], onDelete: Cascade)
+  prerequisite   Mission @relation("MissionRequiredBy", fields: [prerequisiteId], references: [id], onDelete: Cascade)
+
+  @@id([missionId, prerequisiteId])
+}
+
+model Skill {
+  id             String              @id @default(cuid())
+  name           String
+  slug           String              @unique
+  description    String
+  missionSkills  MissionSkill[]
+  exercises      Exercise[]
+  userProgress   UserSkillProgress[]
+  reviewSchedule ReviewSchedule[]
+}
+
+model ContentTag {
+  id          String       @id @default(cuid())
+  name        String
+  slug        String       @unique
+  missionTags MissionTag[]
+}
+
+model MissionSkill {
+  missionId String
+  skillId   String
+  mission   Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  skill     Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([missionId, skillId])
+}
+
+model MissionTag {
+  missionId String
+  tagId     String
+  mission   Mission    @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  tag       ContentTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([missionId, tagId])
+}
+
+model Exercise {
+  id                  String               @id @default(cuid())
+  missionId           String
+  type                ExerciseType
+  prompt              String
+  explanation         String
+  difficulty          MissionDifficulty
+  skillId             String?
+  order               Int
+  isDemo              Boolean              @default(true)
+  mission             Mission              @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  skill               Skill?               @relation(fields: [skillId], references: [id], onDelete: SetNull)
+  options             ExerciseOption[]
+  attempts            ExerciseAttempt[]
+  simulationQuestions SimulationQuestion[]
+  simulationAnswers   SimulationAnswer[]
+
+  @@index([missionId])
+  @@index([skillId])
+}
+
+model ExerciseOption {
+  id         String             @id @default(cuid())
+  exerciseId String
+  text       String
+  isCorrect  Boolean
+  feedback   String
+  exercise   Exercise           @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  attempts   ExerciseAttempt[]
+  answers    SimulationAnswer[]
+
+  @@index([exerciseId])
+}
+
+model ExerciseAttempt {
+  id               String          @id @default(cuid())
+  userId           String
+  exerciseId       String
+  selectedOptionId String?
+  answerText       String?
+  isCorrect        Boolean
+  feedback         String
+  createdAt        DateTime        @default(now())
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise         Exercise        @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  selectedOption   ExerciseOption? @relation(fields: [selectedOptionId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([exerciseId])
+}
+
+model Enrollment {
+  id          String           @id @default(cuid())
+  userId      String
+  trackId     String
+  status      EnrollmentStatus @default(ACTIVE)
+  startedAt   DateTime         @default(now())
+  completedAt DateTime?
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  track       Track            @relation(fields: [trackId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, trackId])
+  @@index([trackId])
+}
+
+model MissionProgress {
+  id              String        @id @default(cuid())
+  userId          String
+  missionId       String
+  status          String        @default("NOT_STARTED")
+  masteryStatus   MasteryStatus @default(NOT_STARTED)
+  completedAt     DateTime?
+  lastStudiedAt   DateTime?
+  attemptsCount   Int           @default(0)
+  correctCount    Int           @default(0)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mission         Mission       @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, missionId])
+  @@index([missionId])
+}
+
+model UserSkillProgress {
+  id              String        @id @default(cuid())
+  userId          String
+  skillId         String
+  masteryStatus   MasteryStatus @default(NOT_STARTED)
+  score           Int           @default(0)
+  lastPracticedAt DateTime?
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill           Skill         @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, skillId])
+}
+
+model ReviewSchedule {
+  id            String       @id @default(cuid())
+  userId        String
+  missionId     String
+  skillId       String?
+  dueAt         DateTime
+  intervalDays  Int
+  status        ReviewStatus @default(PENDING)
+  createdAt     DateTime     @default(now())
+  completedAt   DateTime?
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mission       Mission      @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  skill         Skill?       @relation(fields: [skillId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([dueAt])
+}
+
+model Simulation {
+  id          String               @id @default(cuid())
+  title       String
+  description String
+  type        SimulationType
+  trackId     String?
+  moduleId    String?
+  isDemo      Boolean              @default(true)
+  createdAt   DateTime             @default(now())
+  track       Track?               @relation(fields: [trackId], references: [id], onDelete: SetNull)
+  module      Module?              @relation(fields: [moduleId], references: [id], onDelete: SetNull)
+  questions   SimulationQuestion[]
+  attempts    SimulationAttempt[]
+}
+
+model SimulationQuestion {
+  id           String     @id @default(cuid())
+  simulationId String
+  exerciseId   String
+  order        Int
+  simulation   Simulation @relation(fields: [simulationId], references: [id], onDelete: Cascade)
+  exercise     Exercise   @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@unique([simulationId, exerciseId])
+  @@index([exerciseId])
+}
+
+model SimulationAttempt {
+  id               String             @id @default(cuid())
+  userId           String
+  simulationId     String
+  startedAt        DateTime           @default(now())
+  finishedAt       DateTime?
+  score            Int
+  correctCount     Int
+  wrongCount       Int
+  weakSkillsJson   Json?
+  strongSkillsJson Json?
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  simulation       Simulation         @relation(fields: [simulationId], references: [id], onDelete: Cascade)
+  answers          SimulationAnswer[]
+
+  @@index([userId])
+  @@index([simulationId])
+}
+
+model SimulationAnswer {
+  id               String             @id @default(cuid())
+  attemptId        String
+  exerciseId       String
+  selectedOptionId String?
+  isCorrect        Boolean
+  attempt          SimulationAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  exercise         Exercise           @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  selectedOption   ExerciseOption?    @relation(fields: [selectedOptionId], references: [id], onDelete: SetNull)
+}
+
+model XPTransaction {
+  id            String   @id @default(cuid())
+  userId        String
+  amount        Int
+  reason        String
+  referenceType String
+  referenceId   String
+  dedupeKey     String?  @unique
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Badge {
+  id          String      @id @default(cuid())
+  title       String
+  slug        String      @unique
+  description String
+  icon        String
+  rule        String
+  isDemo      Boolean     @default(true)
+  users       UserBadge[]
+}
+
+model UserBadge {
+  id       String   @id @default(cuid())
+  userId   String
+  badgeId  String
+  earnedAt DateTime @default(now())
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge    Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+}
+
+model EngagementSignal {
+  id              String               @id @default(cuid())
+  userId          String
+  classGroupId    String?
+  type            EngagementSignalType
+  severity        EngagementSeverity
+  message         String
+  suggestedAction String
+  createdAt       DateTime             @default(now())
+  resolvedAt      DateTime?
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  classGroup      ClassGroup?          @relation(fields: [classGroupId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([classGroupId])
+}
+
+model TeacherNote {
+  id        String   @id @default(cuid())
+  teacherId String
+  studentId String
+  note      String
+  createdAt DateTime @default(now())
+  teacher   User     @relation("TeacherNotesAuthored", fields: [teacherId], references: [id], onDelete: Cascade)
+  student   User     @relation("TeacherNotesReceived", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([teacherId])
+  @@index([studentId])
+}
+
+model Exam {
+  id           String        @id @default(cuid())
+  title        String
+  description  String
+  organization String
+  isDemo       Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  subjects     ExamSubject[]
+}
+
+model ExamSubject {
+  id       String      @id @default(cuid())
+  examId   String
+  title    String
+  order    Int
+  exam     Exam        @relation(fields: [examId], references: [id], onDelete: Cascade)
+  topics   ExamTopic[]
+}
+
+model ExamTopic {
+  id        String      @id @default(cuid())
+  subjectId String
+  title     String
+  order     Int
+  subject   ExamSubject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  userId     String
+  action     String
+  entityType String
+  entityId   String
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+enum CalendarEventType {
+  COMPROMISSO
+  EVENTO
+  REVISAO
+}
+
+/// Agenda pessoal do usuário. A data é guardada como texto "YYYY-MM-DD" e a hora
+/// como "HH:MM" para evitar deslocamento de fuso horário em eventos sem hora.
+model CalendarEvent {
+  id        String            @id @default(cuid())
+  userId    String
+  title     String
+  dateKey   String
+  time      String?
+  type      CalendarEventType @default(EVENTO)
+  createdAt DateTime          @default(now())
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, dateKey])
+}
+
+/// Bloco de anotações pessoal. "folder" é um rótulo livre usado para agrupar notas.
+model StudyNote {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String   @default("Nova nota")
+  content   String   @default("")
+  folder    String   @default("Geral")
+  color     String   @default("yellow")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// Bichinho de estimação do aluno.
+///
+/// Os medidores são guardados como estavam em `syncedAt` e envelhecem sozinhos:
+/// quem calcula o valor "de agora" é src/lib/pet/state.ts, na leitura. Assim o
+/// pet muda com o tempo sem precisar de rotina agendada no servidor.
+model Pet {
+  id           String    @id @default(cuid())
+  userId       String    @unique
+  name         String    @default("Nero")
+  satiety      Int       @default(70)
+  energy       Int       @default(80)
+  affection    Int       @default(60)
+  syncedAt     DateTime  @default(now())
+  lastFedAt    DateTime?
+  lastPlayedAt DateTime?
+  lastPettedAt DateTime?
+  /// Dia "YYYY-MM-DD" do orçamento de petiscos e quantos já saíram nele.
+  treatsDateKey String   @default("")
+  treatsUsed    Int      @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

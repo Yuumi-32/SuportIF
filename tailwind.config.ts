@@ -1,5 +1,18 @@
 import type { Config } from "tailwindcss";
 
+const shades = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
+
+/**
+ * Escala apontando para variáveis CSS (`--violet-700`, `--slate-200`, ...).
+ * Os valores padrão ficam em globals.css e são iguais aos do Tailwind, então
+ * nada muda de aparência até o usuário personalizar em /configuracao.
+ */
+function themeableScale(name: string) {
+  return Object.fromEntries(
+    shades.map((shade) => [shade, `hsl(var(--${name}-${shade}) / <alpha-value>)`])
+  );
+}
+
 const config: Config = {
   darkMode: ["class"],
   content: [
@@ -10,6 +23,8 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        violet: themeableScale("violet"),
+        slate: themeableScale("slate"),
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
