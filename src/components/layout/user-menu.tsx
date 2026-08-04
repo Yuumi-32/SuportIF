@@ -10,10 +10,10 @@ type UserMenuProps = {
   accountContext: string;
 };
 
-const menuItems: Array<{ label: string; href?: string }> = [
+const menuItems: Array<{ label: string; href: string }> = [
   { label: "Conta", href: "/configuracao?secao=conta" },
   { label: "Configuração", href: "/configuracao" },
-  { label: "Notas" },
+  { label: "Notas", href: "/notas" },
   { label: "Pet", href: "/pet" },
 ];
 
@@ -58,22 +58,16 @@ export function UserMenu({ name, accountContext }: UserMenuProps) {
 
         {open && (
           <div className="absolute left-0 top-full z-50 mt-2 w-44 rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
-            {menuItems.map((item) =>
-              item.href ? (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  className={menuItemClassName}
-                  onClick={() => setOpen(false)}
-                >
-                  {item.label}
-                </Link>
-              ) : (
-                <button key={item.label} className={menuItemClassName}>
-                  {item.label}
-                </button>
-              )
-            )}
+            {menuItems.map((item) => (
+              <Link
+                key={item.label}
+                href={item.href}
+                className={menuItemClassName}
+                onClick={() => setOpen(false)}
+              >
+                {item.label}
+              </Link>
+            ))}
           </div>
         )}
       </div>
