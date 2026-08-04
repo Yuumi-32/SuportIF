@@ -61,6 +61,24 @@ export const cornerInset = 68;
 export const topInset = 180;
 export const bottomInset = 24;
 
+/**
+ * Atividades que têm desenho pronto.
+ *
+ * O kit 16-bit entregue pelo designer cobre só o ciclo de caminhada, então o
+ * cérebro não escolhe pose que não existe — sentar, dormir, se lamber, bocejar,
+ * espreguiçar, comer, ronronar e miar ficam de fora até chegar a arte delas.
+ * A intenção continua viva: com sono ele ainda vai para o canto, com fome ele
+ * ainda para de passear. Só não muda de pose.
+ *
+ * Para religar uma atividade, basta acrescentar ela nesta lista e desenhar o
+ * quadro correspondente em lib/pet/pixel-sprite.ts.
+ */
+export const availableActivities: PetActivity[] = ["walk", "idle", "chase"];
+
+function withArt(activity: PetActivity): PetActivity {
+  return availableActivities.includes(activity) ? activity : "idle";
+}
+
 export type BehaviorState = {
   activity: PetActivity;
   startedAt: number;
@@ -159,7 +177,10 @@ function pickIdleActivity(previous: PetActivity, stats: PetStats, random: Random
         ["idle", 20]
       ];
 
-  const pool = weights.filter(([activity]) => activity === "walk" || activity !== previous);
+  const pool = weights.filter(
+    ([activity]) =>
+      availableActivities.includes(activity) && (activity === "walk" || activity !== previous)
+  );
   const total = pool.reduce((sum, [, weight]) => sum + weight, 0);
   let ticket = random() * total;
 
@@ -180,12 +201,16 @@ function facingTowards(from: number, to: number, fallback: 1 | -1): 1 | -1 {
 }
 
 function start(
-  activity: PetActivity,
+  requested: PetActivity,
   state: BehaviorState,
   now: number,
   random: Random,
   target: Point | null = null
 ): BehaviorState {
+  // Ponto único onde uma pose sem desenho vira "parado" — inclusive as que vêm
+  // de interrupção (clique, petisco) e das necessidades (sono, fome).
+  const activity = withArt(requested);
+
   return {
     activity,
     startedAt: now,

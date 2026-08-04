@@ -15,7 +15,7 @@ import {
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 
-import { BlackCat, type PetReaction } from "@/components/pet/black-cat";
+import { CatSprite } from "@/components/pet/cat-sprite";
 import { isRoamingEnabled, roamingChangeEvent, setRoamingEnabled } from "@/components/pet/roaming-pet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,9 +23,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   applyElapsedTime,
-  formatWait,
-  getCollarLabel,
-  getCooldownRemainingMs,
   getPetMood,
   getPetMoodMessage,
   getWellbeing,
@@ -48,6 +45,12 @@ const meters: Array<{ key: "satiety" | "energy" | "affection"; label: string; hi
   { key: "affection", label: "Carinho", hint: "sobe com atenção sua", color: "hsl(var(--violet-600))" }
 ];
 
+/**
+ * Retorno visual do retrato a cada ação. Enquanto o kit 16-bit só tem o ciclo
+ * de caminhada, "play" é o que o retrato consegue mostrar — ele anda um pouco.
+ */
+type PetReaction = "none" | "hearts" | "eat" | "play";
+
 const reactionByAction: Record<PetAction, PetReaction> = {
   FEED: "eat",
   PLAY: "play",
@@ -59,7 +62,6 @@ export function PetView({ ownerName, overview }: PetViewProps) {
   const [now, setNow] = useState(() => overview.now);
   const [feedback, setFeedback] = useState<{ text: string; error: boolean } | null>(null);
   const [reaction, setReaction] = useState<PetReaction>("none");
-  const [reactionKey, setReactionKey] = useState(0);
   const [renaming, setRenaming] = useState(false);
   const [draftName, setDraftName] = useState(overview.name);
   const [roaming, setRoaming] = useState(true);
@@ -113,19 +115,12 @@ export function PetView({ ownerName, overview }: PetViewProps) {
   const moodMessage = getPetMoodMessage(mood, view.name, view.signals);
   const wellbeing = getWellbeing(stats);
 
-  const waits: Record<PetAction, number> = {
-    FEED: getCooldownRemainingMs(baseState, "FEED", now),
-    PLAY: getCooldownRemainingMs(baseState, "PLAY", now),
-    PET: getCooldownRemainingMs(baseState, "PET", now)
-  };
-
   function care(action: PetAction) {
     if (isPending) {
       return;
     }
 
     setReaction(reactionByAction[action]);
-    setReactionKey((key) => key + 1);
 
     if (reactionTimer.current) {
       clearTimeout(reactionTimer.current);
@@ -159,31 +154,19 @@ export function PetView({ ownerName, overview }: PetViewProps) {
     });
   }
 
-  const actions: Array<{ action: PetAction; label: string; icon: typeof Fish; note: string; blocked: boolean }> = [
+  // Sem espera e sem cota: as três ações estão sempre disponíveis.
+  const actions: Array<{ action: PetAction; label: string; icon: typeof Fish; note: string }> = [
     {
       action: "FEED",
       label: "Alimentar",
       icon: Fish,
       note:
-        view.treats.available > 0
-          ? `${view.treats.available} de ${view.treats.allowance} ${view.treats.allowance === 1 ? "petisco" : "petiscos"} hoje`
-          : "sem petiscos — estude para ganhar",
-      blocked: view.treats.available === 0
+        view.treatsToday === 0
+          ? "enche a barriga dele"
+          : `${view.treatsToday} ${view.treatsToday === 1 ? "petisco" : "petiscos"} hoje`
     },
-    {
-      action: "PLAY",
-      label: "Brincar",
-      icon: Gamepad2,
-      note: stats.energy < 25 ? "ele está sem energia" : "gasta energia, rende carinho",
-      blocked: stats.energy < 25
-    },
-    {
-      action: "PET",
-      label: "Fazer carinho",
-      icon: Hand,
-      note: "de graça, sempre funciona",
-      blocked: false
-    }
+    { action: "PLAY", label: "Brincar", icon: Gamepad2, note: "gasta energia, rende carinho" },
+    { action: "PET", label: "Fazer carinho", icon: Hand, note: "sempre funciona" }
   ];
 
   const progressCards = [
@@ -248,12 +231,11 @@ export function PetView({ ownerName, overview }: PetViewProps) {
               title="Fazer carinho"
               className="flex w-full justify-center rounded-lg bg-violet-50 p-4 transition-colors hover:bg-violet-100 disabled:opacity-70"
             >
-              <BlackCat
-                mood={mood}
-                reaction={reaction}
-                reactionKey={reactionKey}
-                collarLabel={getCollarLabel(view.signals.level)}
-                className="h-56 w-56"
+              {/* Mesmo sprite que passeia pelas telas, em 8×: um bicho só, um
+                  estilo só. O humor aparece na etiqueta e na fala aqui do lado. */}
+              <CatSprite
+                activity={reaction === "play" ? "walk" : "idle"}
+                className="h-[200px] w-[208px]"
               />
             </button>
 
@@ -306,8 +288,6 @@ export function PetView({ ownerName, overview }: PetViewProps) {
 
               <div className="grid gap-3 sm:grid-cols-3">
                 {actions.map((item) => {
-                  const wait = waits[item.action];
-                  const disabled = isPending || wait > 0 || item.blocked;
                   const Icon = item.icon;
 
                   return (
@@ -315,7 +295,7 @@ export function PetView({ ownerName, overview }: PetViewProps) {
                       <Button
                         variant={item.action === "PET" ? "secondary" : "default"}
                         className="w-full"
-                        disabled={disabled}
+                        disabled={isPending}
                         onClick={() => care(item.action)}
                       >
                         {isPending ? (
@@ -325,9 +305,7 @@ export function PetView({ ownerName, overview }: PetViewProps) {
                         )}
                         {item.label}
                       </Button>
-                      <p className="text-center text-xs text-slate-500">
-                        {wait > 0 ? `disponível em ${formatWait(wait)}` : item.note}
-                      </p>
+                      <p className="text-center text-xs text-slate-500">{item.note}</p>
                     </div>
                   );
                 })}
@@ -364,9 +342,10 @@ export function PetView({ ownerName, overview }: PetViewProps) {
               </dl>
 
               <ul className="space-y-1.5 text-xs text-slate-500">
-                <li>Cada missão, revisão ou simulado concluído hoje vira um petisco.</li>
+                <li>Estudar hoje deixa o {view.name} orgulhoso — é o que ele mostra no humor.</li>
                 <li>Com ofensiva de 3 dias ou mais ele sente menos fome enquanto você está fora.</li>
                 <li>Revisão atrasada deixa o {view.name} de orelha em pé.</li>
+                <li>Cuidar dele não tem espera nem limite: alimente, brinque e faça carinho à vontade.</li>
               </ul>
 
               <button

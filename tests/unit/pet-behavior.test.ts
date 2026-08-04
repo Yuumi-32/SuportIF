@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   activityDefs,
   advanceBehavior,
+  availableActivities,
   bottomInset,
   chooseBehavior,
   cornerInset,
@@ -78,7 +79,7 @@ describe("escolha de comportamento", () => {
     expect(next.facing).toBe(1);
   });
 
-  it("dorme quando já está no canto e sem energia", () => {
+  it("chegando ao canto sem energia, ele para por lá", () => {
     const state = makeState({ x: cornerInset, y: topInset });
     const next = chooseBehavior(
       state,
@@ -87,22 +88,33 @@ describe("escolha de comportamento", () => {
       fixed(0.5)
     );
 
-    expect(next.activity).toBe("sleep");
+    // Enquanto o quadro dormindo não chega do designer, dormir vira ficar parado.
+    expect(next.activity).toBe("idle");
+    expect(next.targetX).toBeNull();
     expect(activityDefs.sleep.pose).toBe("lie");
   });
 
   it("sono ganha de fome", () => {
-    const next = chooseBehavior(
-      makeState({ x: cornerInset, y: topInset }),
+    const semSono = chooseBehavior(
+      makeState({ x: 600, y: 400 }),
+      makeContext({ stats: { satiety: 5, energy: 80, affection: 50 } }),
+      1000,
+      fixed(0.5)
+    );
+    const comSono = chooseBehavior(
+      makeState({ x: 600, y: 400 }),
       makeContext({ stats: { satiety: 5, energy: 10, affection: 50 } }),
       1000,
       fixed(0.5)
     );
 
-    expect(next.activity).toBe("sleep");
+    // Com fome ele fica parado onde está; com sono ele caminha até o canto.
+    expect(semSono.targetX).toBeNull();
+    expect(comSono.activity).toBe("walk");
+    expect(comSono.targetX).toBe(1000 - cornerInset);
   });
 
-  it("mia sentado quando está faminto", () => {
+  it("faminto, ele para de passear", () => {
     const next = chooseBehavior(
       makeState(),
       makeContext({ stats: { ...healthy, satiety: 10 } }),
@@ -110,8 +122,23 @@ describe("escolha de comportamento", () => {
       fixed(0.1)
     );
 
-    expect(next.activity).toBe("beg");
+    expect(next.activity).toBe("idle");
+    expect(next.targetX).toBeNull();
+    // O texto do miado continua pronto para quando a pose sentada voltar.
     expect(getIdleChatter("beg", "Nero")).toBe("miau!");
+  });
+
+  it("nunca escolhe uma pose que não tem desenho", () => {
+    const state = makeState();
+
+    for (let ticket = 0; ticket < 1; ticket += 0.02) {
+      const escolhido = chooseBehavior(state, makeContext(), 1000, fixed(ticket));
+      expect(availableActivities).toContain(escolhido.activity);
+    }
+
+    // Vale também para interrupção vinda de clique ou petisco.
+    expect(interrupt(state, "cuddle", 500).activity).toBe("idle");
+    expect(interrupt(state, "eat", 500).activity).toBe("idle");
   });
 
   it("vai na direção do cursor quando o carinho está em dia", () => {
@@ -260,14 +287,16 @@ describe("deslocamento", () => {
 describe("interrupções", () => {
   it("troca a atividade na hora, mantendo a posição", () => {
     const state = makeState({ activity: "walk", x: 321, y: 222, targetX: 800, targetY: 400 });
-    const cuddling = interrupt(state, "cuddle", 7000);
+    const parado = interrupt(state, "cuddle", 7000);
 
-    expect(cuddling.activity).toBe("cuddle");
-    expect(cuddling.x).toBe(321);
-    expect(cuddling.y).toBe(222);
-    expect(cuddling.targetX).toBeNull();
-    expect(cuddling.targetY).toBeNull();
-    expect(cuddling.endsAt).toBe(7000 + activityDefs.cuddle.minMs);
+    // "cuddle" ainda não tem desenho, então vira "idle" — mas o essencial da
+    // interrupção continua: ele para na hora, onde está.
+    expect(parado.activity).toBe("idle");
+    expect(parado.x).toBe(321);
+    expect(parado.y).toBe(222);
+    expect(parado.targetX).toBeNull();
+    expect(parado.targetY).toBeNull();
+    expect(parado.endsAt).toBeGreaterThanOrEqual(7000 + activityDefs.idle.minMs);
   });
 });
 

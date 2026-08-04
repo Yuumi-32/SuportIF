@@ -5,9 +5,9 @@
 /// 1. O tempo é quem move os medidores. O banco guarda como eles estavam em
 ///    `syncedAt`; o valor "de agora" é sempre calculado na leitura. Isso evita
 ///    rotina agendada no servidor e mantém o pet vivo entre visitas.
-/// 2. O estudo é quem alimenta o cuidado. Petisco não cai do céu: sai do que a
-///    pessoa fez hoje na plataforma. O carinho é de graça — o que custa é a
-///    comida.
+/// 2. Cuidar é ilimitado. Não há espera entre ações nem cota de petiscos: o
+///    estudo continua influenciando o bicho (humor e ritmo de decaimento), mas
+///    nunca bloqueia quem quer cuidar dele.
 
 export const petActions = ["FEED", "PLAY", "PET"] as const;
 export type PetAction = (typeof petActions)[number];
@@ -47,20 +47,6 @@ const energyRecoveryPerHour = 7;
 /** Ninguém volta de uma semana fora com o pet zerado. */
 const minimumIdleSatiety = 8;
 const minimumIdleAffection = 5;
-
-export const petActionCooldownMs: Record<PetAction, number> = {
-  FEED: 45 * MINUTE,
-  PLAY: 15 * MINUTE,
-  PET: 45_000
-};
-
-/** Teto de petiscos por dia, para o carinho não virar farra de ração. */
-export const maxDailyTreats = 6;
-/** Um petisco sai de graça por dia; o resto é conquistado estudando. */
-export const baseDailyTreats = 1;
-
-const playEnergyFloor = 25;
-const feedSatietyCeiling = 88;
 
 function clamp(value: number) {
   return Math.max(0, Math.min(100, Math.round(value)));
@@ -104,93 +90,30 @@ export function getWellbeing(stats: PetStats) {
   return Math.round((stats.satiety + stats.energy + stats.affection) / 3);
 }
 
-export function getTreatAllowance(signals: Pick<StudySignals, "activitiesToday">) {
-  return Math.min(baseDailyTreats + signals.activitiesToday, maxDailyTreats);
-}
-
-export function getAvailableTreats(
-  signals: Pick<StudySignals, "activitiesToday">,
-  treatsUsedToday: number
-) {
-  return Math.max(getTreatAllowance(signals) - treatsUsedToday, 0);
-}
-
-function lastUseOf(state: PetState, action: PetAction) {
-  if (action === "FEED") return state.lastFedAt;
-  if (action === "PLAY") return state.lastPlayedAt;
-  return state.lastPettedAt;
-}
-
-/** Quanto falta para a ação liberar de novo. Zero quer dizer disponível. */
-export function getCooldownRemainingMs(state: PetState, action: PetAction, now: Date) {
-  const last = lastUseOf(state, action);
-
-  if (!last) {
-    return 0;
-  }
-
-  return Math.max(0, petActionCooldownMs[action] - (now.getTime() - last.getTime()));
-}
-
-export function formatWait(ms: number) {
-  const minutes = Math.ceil(ms / MINUTE);
-
-  if (ms < MINUTE) {
-    return `${Math.ceil(ms / 1000)}s`;
-  }
-
-  return minutes < 60 ? `${minutes} min` : `${Math.ceil(minutes / 60)} h`;
-}
-
-export type PetActionResult =
-  | { ok: true; state: PetState; message: string; treatsSpent: number }
-  | { ok: false; message: string };
+export type PetActionResult = { state: PetState; message: string; treatsGiven: number };
 
 /**
  * Aplica uma ação de cuidado sobre o estado já envelhecido até `now`.
  *
- * A recusa é parte do brinquedo: gato empanturrado não come e gato exausto não
- * brinca. Cada recusa devolve o texto que a tela mostra.
+ * Cuidar é ilimitado: não existe tempo de espera, cota de petiscos nem recusa.
+ * Qualquer ação sempre acontece. O que sobrou de limite é o próprio medidor —
+ * ele não passa de 100, então alimentar um bicho cheio rende pouco.
  */
 export function applyPetAction(input: {
   state: PetState;
   action: PetAction;
   now: Date;
   signals: StudySignals;
-  treatsUsedToday: number;
+  treatsGivenToday: number;
   petName: string;
 }): PetActionResult {
-  const { action, now, signals, treatsUsedToday, petName } = input;
+  const { action, now, signals, petName } = input;
   const stats = applyElapsedTime(input.state, now, signals.streak);
   const state: PetState = { ...input.state, ...stats, syncedAt: now };
 
-  const waiting = getCooldownRemainingMs(input.state, action, now);
-
-  if (waiting > 0) {
-    return {
-      ok: false,
-      message:
-        action === "PET"
-          ? `${petName} ainda está aproveitando o carinho. Tente em ${formatWait(waiting)}.`
-          : `Espere ${formatWait(waiting)} para repetir.`
-    };
-  }
-
   if (action === "FEED") {
-    if (stats.satiety > feedSatietyCeiling) {
-      return { ok: false, message: `${petName} está empanturrado e recusa o petisco.` };
-    }
-
-    if (getAvailableTreats(signals, treatsUsedToday) <= 0) {
-      return {
-        ok: false,
-        message: "Acabaram os petiscos de hoje. Conclua uma missão ou revisão para ganhar mais."
-      };
-    }
-
     return {
-      ok: true,
-      treatsSpent: 1,
+      treatsGiven: 1,
       message: `${petName} devorou o petisco e ronronou.`,
       state: {
         ...state,
@@ -203,13 +126,8 @@ export function applyPetAction(input: {
   }
 
   if (action === "PLAY") {
-    if (stats.energy < playEnergyFloor) {
-      return { ok: false, message: `${petName} está sem energia. Deixe ele cochilar um pouco.` };
-    }
-
     return {
-      ok: true,
-      treatsSpent: 0,
+      treatsGiven: 0,
       message: `${petName} correu atrás do novelo e voltou ofegante.`,
       state: {
         ...state,
@@ -222,8 +140,7 @@ export function applyPetAction(input: {
   }
 
   return {
-    ok: true,
-    treatsSpent: 0,
+    treatsGiven: 0,
     message: `${petName} fechou os olhos e ronronou.`,
     state: {
       ...state,
@@ -293,16 +210,3 @@ export function getPetMoodMessage(mood: PetMood, petName: string, signals: Study
   }
 }
 
-/** Como o pet aparece na tela: o humor manda no rosto e no rabo. */
-export function getPetPose(mood: PetMood) {
-  return {
-    eyes: mood === "sleepy" ? "sleepy" : mood === "playful" || mood === "proud" ? "happy" : "open",
-    tailSpeedSeconds: mood === "playful" ? 1.6 : mood === "sleepy" ? 7 : 4.5,
-    alert: mood === "worried" || mood === "hungry"
-  } as const;
-}
-
-/** Texto da plaquinha da coleira: o nível de quem cuida dele. */
-export function getCollarLabel(level: number) {
-  return level > 99 ? "99+" : String(Math.max(1, Math.round(level)));
-}

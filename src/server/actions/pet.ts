@@ -36,7 +36,7 @@ export async function carePetAction(input: { action: PetAction }): Promise<PetAc
     return { status: "error", message: "Ação inválida.", overview: buildPetOverview(pet, signals, now) };
   }
 
-  const treatsUsedToday = getTreatsUsedToday(pet, now);
+  const treatsGivenToday = getTreatsUsedToday(pet, now);
   const result = applyPetAction({
     state: {
       satiety: pet.satiety,
@@ -50,13 +50,9 @@ export async function carePetAction(input: { action: PetAction }): Promise<PetAc
     action: parsed.data.action,
     now,
     signals,
-    treatsUsedToday,
+    treatsGivenToday,
     petName: pet.name
   });
-
-  if (!result.ok) {
-    return { status: "error", message: result.message, overview: buildPetOverview(pet, signals, now) };
-  }
 
   const updated = await prisma.pet.update({
     where: { userId: user.id },
@@ -69,7 +65,7 @@ export async function carePetAction(input: { action: PetAction }): Promise<PetAc
       lastPlayedAt: result.state.lastPlayedAt,
       lastPettedAt: result.state.lastPettedAt,
       treatsDateKey: toDateKey(now),
-      treatsUsed: treatsUsedToday + result.treatsSpent
+      treatsUsed: treatsGivenToday + result.treatsGiven
     }
   });
 

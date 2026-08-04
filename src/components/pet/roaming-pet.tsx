@@ -16,6 +16,7 @@ import {
   type BehaviorState,
   type PetActivity
 } from "@/lib/pet/behavior";
+import { spriteHeight, spriteWidth } from "@/lib/pet/pixel-sprite";
 import { applyElapsedTime, type PetStats } from "@/lib/pet/state";
 import { carePetAction } from "@/server/actions/pet";
 import type { PetOverview } from "@/server/queries/pet";
@@ -37,8 +38,10 @@ export function setRoamingEnabled(enabled: boolean) {
 }
 
 /** Meia largura do bicho na tela — o `x` do comportamento é o centro dele. */
-const catWidth = 120;
-const catHeight = 88;
+/** A arte é 26 × 25 px; 4× mantém pixel inteiro na tela e não borra a borda. */
+const spriteZoom = 4;
+const catWidth = spriteWidth * spriteZoom;
+const catHeight = spriteHeight * spriteZoom;
 const bubbleMs = 2800;
 
 /** Palco mínimo: abaixo disso não sobra caminho entre os cantos. */
@@ -81,7 +84,6 @@ export function RoamingPet({ overview }: { overview: PetOverview }) {
   const [bowl, setBowl] = useState<{ x: number; y: number } | null>(null);
   const [bubble, setBubble] = useState<string | null>(null);
   const [hearts, setHearts] = useState(0);
-  const [looking, setLooking] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -302,28 +304,15 @@ export function RoamingPet({ overview }: { overview: PetOverview }) {
     return () => cancelAnimationFrame(frame);
   }, [mounted, enabled, reducedMotion, applyTransform, runCare, say, view.name]);
 
-  // Ele repara em quem está por perto: cabeça levantada quando o mouse chega junto.
+  // Onde está o mouse: é o que faz ele caminhar na sua direção quando o carinho
+  // está em dia. A cabeça não acompanha mais o cursor — o sprite olha para frente.
   useEffect(() => {
     if (!mounted || !enabled) {
       return;
     }
 
-    let queued = false;
-
     const onMove = (event: PointerEvent) => {
       contextRef.current = { ...contextRef.current, cursorX: event.clientX, cursorY: event.clientY };
-
-      if (queued) {
-        return;
-      }
-
-      queued = true;
-      setTimeout(() => {
-        queued = false;
-        const state = behaviorRef.current;
-        const gap = Math.hypot(event.clientX - state.x, event.clientY - state.y);
-        setLooking(gap < 150);
-      }, 120);
     };
 
     window.addEventListener("pointermove", onMove);
@@ -410,8 +399,8 @@ export function RoamingPet({ overview }: { overview: PetOverview }) {
     return null;
   }
 
+  // "sleep" só volta a acontecer quando o quadro dormindo chegar do designer.
   const sleeping = activity === "sleep";
-  const headAngle = looking && !sleeping ? -13 : 0;
 
   return (
     <div className="pointer-events-none fixed inset-0 z-30 select-none">
@@ -483,7 +472,7 @@ export function RoamingPet({ overview }: { overview: PetOverview }) {
             className="block h-full w-full cursor-pointer"
           >
             <div ref={spriteRef} className="h-full w-full origin-bottom">
-              <CatSprite activity={activity} headAngle={headAngle} className="h-full w-full" />
+              <CatSprite activity={activity} className="h-full w-full" />
             </div>
           </button>
 
@@ -491,12 +480,8 @@ export function RoamingPet({ overview }: { overview: PetOverview }) {
             <button
               type="button"
               onClick={feed}
-              disabled={busy || view.treats.available === 0}
-              title={
-                view.treats.available > 0
-                  ? `Alimentar (${view.treats.available} petiscos)`
-                  : "Sem petiscos hoje — estude para ganhar"
-              }
+              disabled={busy}
+              title="Alimentar"
               className="rounded-full border border-slate-200 bg-white p-1.5 text-slate-700 shadow-sm transition-colors hover:bg-violet-50 disabled:opacity-40"
             >
               <Fish className="h-3.5 w-3.5" />

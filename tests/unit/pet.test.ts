@@ -3,12 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   applyElapsedTime,
   applyPetAction,
-  getAvailableTreats,
-  getCooldownRemainingMs,
   getPetMood,
-  getTreatAllowance,
   getWellbeing,
-  maxDailyTreats,
+  type PetAction,
   type PetState,
   type StudySignals
 } from "@/lib/pet/state";
@@ -68,150 +65,90 @@ describe("pet decay", () => {
   });
 });
 
-describe("pet treats", () => {
-  it("gives one free treat per day plus one per activity", () => {
-    expect(getTreatAllowance({ activitiesToday: 0 })).toBe(1);
-    expect(getTreatAllowance({ activitiesToday: 3 })).toBe(4);
+function care(
+  action: PetAction,
+  state: PetState,
+  options: { now?: Date; treatsGivenToday?: number; signals?: StudySignals } = {}
+) {
+  return applyPetAction({
+    state,
+    action,
+    now: options.now ?? base,
+    signals: options.signals ?? makeSignals(),
+    treatsGivenToday: options.treatsGivenToday ?? 0,
+    petName: "Nero"
   });
-
-  it("caps the daily allowance", () => {
-    expect(getTreatAllowance({ activitiesToday: 50 })).toBe(maxDailyTreats);
-  });
-
-  it("discounts what was already used today", () => {
-    expect(getAvailableTreats({ activitiesToday: 2 }, 2)).toBe(1);
-    expect(getAvailableTreats({ activitiesToday: 0 }, 5)).toBe(0);
-  });
-});
+}
 
 describe("pet actions", () => {
-  it("feeds the pet and spends one treat", () => {
-    const result = applyPetAction({
-      state: makeState({ satiety: 40 }),
-      action: "FEED",
-      now: base,
-      signals: makeSignals({ activitiesToday: 1 }),
-      treatsUsedToday: 0,
-      petName: "Nero"
-    });
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
+  it("feeds the pet and counts the treat", () => {
+    const result = care("FEED", makeState({ satiety: 40 }));
 
     expect(result.state.satiety).toBe(68);
-    expect(result.treatsSpent).toBe(1);
+    expect(result.treatsGiven).toBe(1);
     expect(result.state.lastFedAt).toEqual(base);
   });
 
-  it("refuses to feed without treats left", () => {
-    const result = applyPetAction({
-      state: makeState({ satiety: 20 }),
-      action: "FEED",
-      now: base,
-      signals: makeSignals(),
-      treatsUsedToday: 1,
-      petName: "Nero"
-    });
-
-    expect(result.ok).toBe(false);
-    expect(result.ok === false && result.message).toContain("petiscos");
-  });
-
-  it("refuses to feed a stuffed pet even with treats available", () => {
-    const result = applyPetAction({
-      state: makeState({ satiety: 95 }),
-      action: "FEED",
-      now: base,
-      signals: makeSignals({ activitiesToday: 3 }),
-      treatsUsedToday: 0,
-      petName: "Nero"
-    });
-
-    expect(result.ok).toBe(false);
-    expect(result.ok === false && result.message).toContain("empanturrado");
-  });
-
   it("trades energy for affection when playing", () => {
-    const result = applyPetAction({
-      state: makeState(),
-      action: "PLAY",
-      now: base,
-      signals: makeSignals(),
-      treatsUsedToday: 0,
-      petName: "Nero"
-    });
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
+    const result = care("PLAY", makeState());
 
     expect(result.state.affection).toBe(74);
     expect(result.state.energy).toBe(64);
     expect(result.state.satiety).toBe(64);
-    expect(result.treatsSpent).toBe(0);
-  });
-
-  it("refuses to play when the pet is exhausted", () => {
-    const result = applyPetAction({
-      state: makeState({ energy: 10 }),
-      action: "PLAY",
-      now: base,
-      signals: makeSignals(),
-      treatsUsedToday: 0,
-      petName: "Nero"
-    });
-
-    expect(result.ok).toBe(false);
-    expect(result.ok === false && result.message).toContain("sem energia");
-  });
-
-  it("blocks an action still on cooldown", () => {
-    const state = makeState({ lastPettedAt: base });
-    const result = applyPetAction({
-      state,
-      action: "PET",
-      now: new Date(base.getTime() + 10_000),
-      signals: makeSignals(),
-      treatsUsedToday: 0,
-      petName: "Nero"
-    });
-
-    expect(result.ok).toBe(false);
-    expect(getCooldownRemainingMs(state, "PET", new Date(base.getTime() + 10_000))).toBe(35_000);
-  });
-
-  it("releases the action once the cooldown is over", () => {
-    const state = makeState({ lastPlayedAt: base });
-    const later = new Date(base.getTime() + 16 * 60_000);
-
-    expect(getCooldownRemainingMs(state, "PLAY", later)).toBe(0);
-    expect(
-      applyPetAction({
-        state,
-        action: "PLAY",
-        now: later,
-        signals: makeSignals(),
-        treatsUsedToday: 0,
-        petName: "Nero"
-      }).ok
-    ).toBe(true);
+    expect(result.treatsGiven).toBe(0);
   });
 
   it("ages the meters before applying the action", () => {
-    const result = applyPetAction({
-      state: makeState({ affection: 50 }),
-      action: "PET",
-      now: hoursLater(10),
-      signals: makeSignals(),
-      treatsUsedToday: 0,
-      petName: "Nero"
-    });
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
+    const result = care("PET", makeState({ affection: 50 }), { now: hoursLater(10) });
 
     // 50 - 30 de decaimento + 7 do carinho.
     expect(result.state.affection).toBe(27);
     expect(result.state.syncedAt).toEqual(hoursLater(10));
+  });
+});
+
+describe("cuidar é ilimitado", () => {
+  it("aceita a mesma ação em sequência, sem espera", () => {
+    let state = makeState({ affection: 10 });
+
+    for (let i = 0; i < 5; i++) {
+      state = care("PET", state).state;
+    }
+
+    // Cinco carinhos seguidos no mesmo instante: nenhum foi recusado.
+    expect(state.affection).toBe(45);
+  });
+
+  it("alimenta um bicho já cheio, sem recusar", () => {
+    const result = care("FEED", makeState({ satiety: 95 }));
+
+    expect(result.treatsGiven).toBe(1);
+    // O medidor é o único limite: ele para em 100.
+    expect(result.state.satiety).toBe(100);
+  });
+
+  it("brinca mesmo esgotado, sem recusar", () => {
+    const result = care("PLAY", makeState({ energy: 10 }));
+
+    expect(result.state.energy).toBe(0);
+    expect(result.state.affection).toBe(74);
+  });
+
+  it("não depende de quantos petiscos já saíram hoje", () => {
+    const primeiro = care("FEED", makeState({ satiety: 40 }), { treatsGivenToday: 0 });
+    const centesimo = care("FEED", makeState({ satiety: 40 }), { treatsGivenToday: 99 });
+
+    expect(centesimo.state.satiety).toBe(primeiro.state.satiety);
+    expect(centesimo.treatsGiven).toBe(1);
+  });
+
+  it("não depende de estudo nenhum para funcionar", () => {
+    const semEstudo = care("FEED", makeState({ satiety: 40 }), {
+      signals: makeSignals({ activitiesToday: 0, streak: 0 })
+    });
+
+    expect(semEstudo.treatsGiven).toBe(1);
+    expect(semEstudo.state.satiety).toBe(68);
   });
 });
 

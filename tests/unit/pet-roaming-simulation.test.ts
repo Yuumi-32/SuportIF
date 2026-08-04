@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   advanceBehavior,
+  availableActivities,
   bottomInset,
   chooseBehavior,
   cornerInset,
@@ -88,12 +89,15 @@ function simulate(options: {
 const healthy: PetStats = { satiety: 70, energy: 80, affection: 65 };
 
 describe("passeio ao longo do tempo", () => {
-  it("um gato saudável anda pela tela e troca de atividade sozinho", () => {
+  it("um gato saudável alterna entre andar e parar, sozinho", () => {
     const run = simulate({ stats: healthy, seconds: 120 });
 
     expect(run.activities.length).toBeGreaterThan(8);
-    expect(run.distinctActivities.size).toBeGreaterThanOrEqual(4);
     expect(run.travelledX).toBeGreaterThan(300);
+    // Só as poses com desenho aparecem enquanto o resto do kit não chega.
+    expect([...run.distinctActivities].every((a) => availableActivities.includes(a))).toBe(true);
+    expect(run.distinctActivities.has("walk")).toBe(true);
+    expect(run.distinctActivities.has("idle")).toBe(true);
   });
 
   it("usa a tela toda, não só a faixa de baixo", () => {
@@ -114,21 +118,23 @@ describe("passeio ao longo do tempo", () => {
     expect(Math.max(...run.ys)).toBeLessThanOrEqual(600 - bottomInset);
   });
 
-  it("cansado, ele termina dormindo num dos quatro cantos", () => {
+  it("cansado, ele termina parado num dos quatro cantos", () => {
     const run = simulate({ stats: { ...healthy, energy: 8 }, seconds: 90 });
 
-    expect(run.finalState.activity).toBe("sleep");
+    // Sem o quadro dormindo ele não deita, mas o essencial continua: procura o
+    // canto e fica lá, em vez de seguir passeando.
+    expect(run.finalState.activity).toBe("idle");
     expect([cornerInset, 1200 - cornerInset]).toContain(run.finalState.x);
     expect([topInset, 800 - bottomInset]).toContain(run.finalState.y);
-    // Só dorme: não fica alternando com outras atividades.
-    expect(run.distinctActivities.has("groom")).toBe(false);
+
+    const noCanto = run.xs.slice(-200).every((x) => x === run.finalState.x);
+    expect(noCanto).toBe(true);
   });
 
-  it("faminto, insiste em pedir comida em vez de passear", () => {
+  it("faminto, ele para de passear", () => {
     const run = simulate({ stats: { ...healthy, satiety: 8 }, seconds: 120 });
-    const begs = run.activities.filter((activity) => activity === "beg").length;
 
-    expect(begs).toBeGreaterThan(3);
+    expect(run.activities.every((activity) => activity === "idle")).toBe(true);
     expect(run.travelledX).toBe(0);
     expect(run.travelledY).toBe(0);
   });

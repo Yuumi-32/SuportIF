@@ -1,10 +1,8 @@
 import { prisma } from "@/lib/prisma/client";
 import {
   applyElapsedTime,
-  getAvailableTreats,
   getPetMood,
   getPetMoodMessage,
-  getTreatAllowance,
   getWellbeing,
   type PetMood,
   type PetState,
@@ -19,7 +17,8 @@ export type PetOverview = {
   mood: PetMood;
   moodMessage: string;
   signals: StudySignals;
-  treats: { available: number; allowance: number };
+  /** Quantos petiscos ele já ganhou hoje. É informação, não limite. */
+  treatsToday: number;
   /** O cliente precisa dos horários para desenhar o tempo de espera de cada ação. */
   lastFedAt: Date | null;
   lastPlayedAt: Date | null;
@@ -94,7 +93,7 @@ export async function getStudySignals(userId: string, now: Date): Promise<StudyS
   };
 }
 
-/** Quantos petiscos já foram usados hoje — o contador zera na virada do dia. */
+/** Quantos petiscos ele já ganhou hoje — o contador zera na virada do dia. */
 export function getTreatsUsedToday(pet: { treatsDateKey: string; treatsUsed: number }, now: Date) {
   return pet.treatsDateKey === toDateKey(now) ? pet.treatsUsed : 0;
 }
@@ -135,10 +134,7 @@ export function buildPetOverview(
     mood,
     moodMessage: getPetMoodMessage(mood, pet.name, signals),
     signals,
-    treats: {
-      available: getAvailableTreats(signals, getTreatsUsedToday(pet, now)),
-      allowance: getTreatAllowance(signals)
-    },
+    treatsToday: getTreatsUsedToday(pet, now),
     lastFedAt: pet.lastFedAt,
     lastPlayedAt: pet.lastPlayedAt,
     lastPettedAt: pet.lastPettedAt,
