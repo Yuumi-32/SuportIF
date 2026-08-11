@@ -55,7 +55,8 @@ export default async function StudentAppPage({
               title: dashboard.nextStep.title,
               contextLabel: `${dashboard.nextStep.trackTitle} · ${dashboard.nextStep.moduleTitle}`,
               shortDescription: dashboard.nextStep.shortDescription,
-              guidedPrompt: dashboard.nextStep.guidedExercisePrompt
+              guidedPrompt: dashboard.nextStep.guidedExercisePrompt,
+              guidedExercise: dashboard.nextStepExercise
             }
           : null
       }

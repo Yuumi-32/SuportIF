@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { GuidedExerciseCard, type GuidedExercise } from "@/components/dashboard/guided-exercise";
 import { LayoutCanvas, type CanvasBlock } from "@/components/layout/layout-canvas";
 import type { BlockSize, DashboardLayoutItem } from "@/lib/appearance/layout";
+import { useRevealProgress } from "@/lib/motion/reveal";
 import { theme as c } from "@/lib/appearance/palette";
 
 export type DashboardMission = {
@@ -60,6 +62,7 @@ type StudentDashboardProps = {
     contextLabel: string;
     shortDescription: string;
     guidedPrompt: string;
+    guidedExercise: GuidedExercise | null;
   } | null;
   badges: DashboardBadge[];
   focusTrack: { title: string; slug: string; modules: DashboardModule[] } | null;
@@ -141,6 +144,10 @@ function Rule() {
   return <div style={{ margin: "8px 0 0", height: 2, width: 48, background: c.fill, borderRadius: 999 }} />;
 }
 
+/**
+ * A largura já chega animada pelo tween do bloco (quadro a quadro), por isso
+ * não há `transition` aqui: as duas animações juntas arrastariam a barra.
+ */
 function ProgressBar({ percent }: { percent: number }) {
   return (
     <div style={{ height: 10, background: c.line, borderRadius: 999, overflow: "hidden" }}>
@@ -149,8 +156,7 @@ function ProgressBar({ percent }: { percent: number }) {
           height: "100%",
           borderRadius: 999,
           background: c.fill,
-          width: `${percent}%`,
-          transition: "width .9s cubic-bezier(.22,1,.36,1)"
+          width: `${percent}%`
         }}
       />
     </div>
@@ -186,28 +192,51 @@ export function StudentDashboard(props: StudentDashboardProps) {
   );
   const selectedModule = modules.find((m) => m.id === selectedModuleId) ?? modules[0] ?? null;
 
+  // Cada bloco conta os próprios números quando entra na tela — chegar rolando
+  // e ver o valor subir explica melhor o avanço do que um número já parado.
+  const heroAnim = useRevealProgress<HTMLDivElement>(1100);
+  const statsAnim = useRevealProgress<HTMLDivElement>(1200);
+  const mapAnim = useRevealProgress<HTMLDivElement>(1000);
+  const tracksAnim = useRevealProgress<HTMLDivElement>(1200);
+  const simAnim = useRevealProgress<HTMLDivElement>(1200);
+
   // Anel do nível: progresso dentro do nível atual (250 XP por nível).
   const xpInLevel = totalXp % XP_PER_LEVEL;
   const ringC = 2 * Math.PI * 34;
-  const ringOffset = ringC * (1 - xpInLevel / XP_PER_LEVEL);
+  const ringOffset = ringC * (1 - (xpInLevel / XP_PER_LEVEL) * heroAnim.value);
+  const heroXp = Math.round(totalXp * heroAnim.value);
 
   const stats = [
-    { title: "XP acumulado", value: String(totalXp), desc: "Seu avanço acumulado." },
-    { title: "Nível atual", value: String(level), desc: "Você está neste nível." },
+    {
+      title: "XP acumulado",
+      value: String(Math.round(totalXp * statsAnim.value)),
+      desc: "Seu avanço acumulado."
+    },
+    {
+      title: "Nível atual",
+      value: String(Math.round(level * statsAnim.value)),
+      desc: "Você está neste nível."
+    },
     {
       title: "Progresso geral",
-      value: `${progressPercent}%`,
+      value: `${Math.round(progressPercent * statsAnim.value)}%`,
       desc: `${completedMissions}/${totalMissions} missões concluídas.`
     },
-    { title: "Revisões ativas", value: String(pendingReviewCount), desc: "Para revisar hoje ou em breve." }
+    {
+      title: "Revisões ativas",
+      value: String(Math.round(pendingReviewCount * statsAnim.value)),
+      desc: "Para revisar hoje ou em breve."
+    }
   ];
 
   const moduleDoneCount = modules.filter((m) => m.totalMissions > 0 && m.completedMissions >= m.totalMissions).length;
-  const fillWidth = modules.length > 1 ? `${(moduleDoneCount / (modules.length - 1)) * 100}%` : "0%";
+  const fillWidth =
+    modules.length > 1 ? `${(moduleDoneCount / (modules.length - 1)) * 100 * mapAnim.value}%` : "0%";
 
   function renderHero(size: BlockSize) {
     return (
       <div
+        ref={heroAnim.ref}
         style={{
           ...panel,
           border: `1px solid ${c.brandLine}`,
@@ -226,7 +255,7 @@ export function StudentDashboard(props: StudentDashboardProps) {
                 ÁREA DO ALUNO
               </span>
             ) : null}
-            <span style={{ ...chipStyle, background: c.fill, color: c.onFill }}>★ {totalXp} XP</span>
+            <span style={{ ...chipStyle, background: c.fill, color: c.onFill }}>★ {heroXp} XP</span>
             <span style={chipStyle}>Nível {level}</span>
           </div>
           <h1
@@ -270,6 +299,7 @@ export function StudentDashboard(props: StudentDashboardProps) {
                   strokeDasharray={ringC.toFixed(1)}
                   strokeDashoffset={ringOffset.toFixed(1)}
                   transform="rotate(-90 40 40)"
+                  style={{ transition: "stroke-dashoffset .1s linear" }}
                 />
               </svg>
               <div
@@ -327,7 +357,11 @@ export function StudentDashboard(props: StudentDashboardProps) {
               </p>
             ) : null}
 
-            {size === "G" && nextStep.guidedPrompt ? (
+            {size === "G" && nextStep.guidedExercise ? (
+              // A chave zera o feedback quando a missão avança e o exercício
+              // do cartão passa a ser outro.
+              <GuidedExerciseCard key={nextStep.guidedExercise.id} exercise={nextStep.guidedExercise} />
+            ) : size === "G" && nextStep.guidedPrompt ? (
               <div
                 style={{
                   marginTop: 18,
@@ -451,6 +485,7 @@ export function StudentDashboard(props: StudentDashboardProps) {
 
     return (
       <div
+        ref={statsAnim.ref}
         style={{
           display: "grid",
           gridTemplateColumns: `repeat(auto-fit, minmax(${size === "G" ? 190 : 140}px, 1fr))`,
@@ -485,7 +520,7 @@ export function StudentDashboard(props: StudentDashboardProps) {
     }
 
     return (
-      <div style={panel}>
+      <div ref={mapAnim.ref} style={panel}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
           <div>
             <span style={{ ...chipStyle, border: `1px solid ${c.brandLine2}` }}>SUA TRILHA EM FOCO</span>
@@ -517,7 +552,7 @@ export function StudentDashboard(props: StudentDashboardProps) {
 
         {size === "P" ? (
           <div style={{ marginTop: 16 }}>
-            <ProgressBar percent={Math.round((moduleDoneCount / modules.length) * 100)} />
+            <ProgressBar percent={Math.round((moduleDoneCount / modules.length) * 100 * mapAnim.value)} />
             <Link href={`/app/trilhas/${focusTrack.slug}`} className="d-ghost" style={{ ...ghostStyle, marginTop: 14 }}>
               Abrir trilha
             </Link>
@@ -534,8 +569,7 @@ export function StudentDashboard(props: StudentDashboardProps) {
                   height: 4,
                   background: c.fill,
                   borderRadius: 2,
-                  width: fillWidth,
-                  transition: "width .9s cubic-bezier(.22,1,.36,1)"
+                  width: fillWidth
                 }}
               />
               {modules.map((mod, i) => {
@@ -544,6 +578,10 @@ export function StudentDashboard(props: StudentDashboardProps) {
                   i === 0 ||
                   modules.slice(0, i).every((m) => m.totalMissions > 0 && m.completedMissions >= m.totalMissions);
                 const isSelected = mod.id === selectedModule?.id;
+                // Módulo atual: destravado mas ainda não concluído. Pulsa para
+                // dizer onde a jornada está parada — sem competir com o anel de
+                // seleção quando os dois caem no mesmo nó.
+                const isCurrent = unlocked && !done;
 
                 return (
                   <button
@@ -564,6 +602,7 @@ export function StudentDashboard(props: StudentDashboardProps) {
                     }}
                   >
                     <span
+                      className={isCurrent && !isSelected ? "d-pulse" : undefined}
                       style={{
                         display: "flex",
                         alignItems: "center",
@@ -622,44 +661,58 @@ export function StudentDashboard(props: StudentDashboardProps) {
               </Link>
             </div>
             <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-              {selectedModule.missions.map((m) => (
-                <Link
-                  key={m.id}
-                  href={`/app/missoes/${m.id}`}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: "11px 14px",
-                    background: c.card,
-                    border: `1px solid ${c.line}`,
-                    borderRadius: 8,
-                    textDecoration: "none"
-                  }}
-                >
-                  <span
+              {selectedModule.missions.map((m, i) => {
+                // A primeira pendente é a que a pessoa deve abrir agora.
+                const isNext =
+                  !m.completed && selectedModule.missions.slice(0, i).every((prev) => prev.completed);
+
+                return (
+                  <Link
+                    key={m.id}
+                    href={`/app/missoes/${m.id}`}
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      justifyContent: "center",
-                      width: 26,
-                      height: 26,
-                      borderRadius: "50%",
-                      flexShrink: 0,
-                      fontSize: 13,
-                      fontWeight: 800,
-                      background: m.completed ? c.fill : c.brandSoft,
-                      color: m.completed ? c.onFill : c.brandInk
+                      gap: 12,
+                      padding: "11px 14px",
+                      background: c.card,
+                      border: `1px solid ${isNext ? c.brandLine2 : c.line}`,
+                      borderRadius: 8,
+                      textDecoration: "none"
                     }}
                   >
-                    {m.completed ? "✓" : "▸"}
-                  </span>
-                  <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: m.completed ? c.muted : c.ink }}>
-                    {m.title}
-                  </span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: c.faint }}>{m.xpReward} XP</span>
-                </Link>
-              ))}
+                    <span
+                      className={isNext ? "d-pulse" : undefined}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: 26,
+                        height: 26,
+                        borderRadius: "50%",
+                        flexShrink: 0,
+                        fontSize: 13,
+                        fontWeight: 800,
+                        background: m.completed ? c.fill : c.brandSoft,
+                        color: m.completed ? c.onFill : c.brandInk
+                      }}
+                    >
+                      {m.completed ? "✓" : "▸"}
+                    </span>
+                    <span
+                      style={{
+                        flex: 1,
+                        fontSize: 14,
+                        fontWeight: isNext ? 700 : 600,
+                        color: m.completed ? c.muted : isNext ? c.brandInk : c.ink
+                      }}
+                    >
+                      {m.title}
+                    </span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: c.faint }}>{m.xpReward} XP</span>
+                  </Link>
+                );
+              })}
             </div>
           </div>
         ) : null}
@@ -671,7 +724,7 @@ export function StudentDashboard(props: StudentDashboardProps) {
     const visible = tracks.slice(0, size === "P" ? 1 : size === "M" ? 2 : 3);
 
     return (
-      <div>
+      <div ref={tracksAnim.ref}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
           <SectionTitle>Trilhas em Andamento</SectionTitle>
           <Link
@@ -688,30 +741,34 @@ export function StudentDashboard(props: StudentDashboardProps) {
           </div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
-            {visible.map((t) => (
-              <div key={t.id} className="d-track" style={{ ...panel, display: "flex", flexDirection: "column", transition: "all .2s" }}>
-                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: c.ink }}>{t.title}</h3>
-                {size === "G" ? (
-                  <p style={{ margin: "8px 0 16px", fontSize: 13.5, lineHeight: 1.55, color: c.muted, flex: 1 }}>
-                    {t.description}
-                  </p>
-                ) : (
-                  <div style={{ flex: 1, minHeight: 12 }} />
-                )}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13, marginBottom: 7 }}>
-                  <span style={{ fontWeight: 600, color: c.ink2 }}>
-                    {t.completedMissions}/{t.totalMissions} missões
-                  </span>
-                  <span style={{ fontWeight: 700, color: c.brandInk }}>{t.progressPercent}%</span>
+            {visible.map((t) => {
+              const shownPercent = Math.round(t.progressPercent * tracksAnim.value);
+
+              return (
+                <div key={t.id} className="d-track" style={{ ...panel, display: "flex", flexDirection: "column", transition: "all .2s" }}>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: c.ink }}>{t.title}</h3>
+                  {size === "G" ? (
+                    <p style={{ margin: "8px 0 16px", fontSize: 13.5, lineHeight: 1.55, color: c.muted, flex: 1 }}>
+                      {t.description}
+                    </p>
+                  ) : (
+                    <div style={{ flex: 1, minHeight: 12 }} />
+                  )}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13, marginBottom: 7 }}>
+                    <span style={{ fontWeight: 600, color: c.ink2 }}>
+                      {t.completedMissions}/{t.totalMissions} missões
+                    </span>
+                    <span style={{ fontWeight: 700, color: c.brandInk }}>{shownPercent}%</span>
+                  </div>
+                  <ProgressBar percent={shownPercent} />
+                  {size !== "P" ? (
+                    <Link href={`/app/trilhas/${t.slug}`} className="d-ghost" style={{ ...ghostStyle, marginTop: 14 }}>
+                      Continuar estudando
+                    </Link>
+                  ) : null}
                 </div>
-                <ProgressBar percent={t.progressPercent} />
-                {size !== "P" ? (
-                  <Link href={`/app/trilhas/${t.slug}`} className="d-ghost" style={{ ...ghostStyle, marginTop: 14 }}>
-                    Continuar estudando
-                  </Link>
-                ) : null}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -720,7 +777,7 @@ export function StudentDashboard(props: StudentDashboardProps) {
 
   function renderSimulation(size: BlockSize) {
     return (
-      <div style={{ ...panel, border: `1px solid ${c.brandMid}` }}>
+      <div ref={simAnim.ref} style={{ ...panel, border: `1px solid ${c.brandMid}` }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
           <div style={{ maxWidth: "60ch" }}>
             <span style={chipStyle}>PARA PRATICAR</span>
@@ -790,7 +847,7 @@ export function StudentDashboard(props: StudentDashboardProps) {
                   <>
                     <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: c.muted }}>Último Resultado:</p>
                     <p style={{ margin: "4px 0 0", fontSize: 40, fontWeight: 900, color: c.ink, lineHeight: 1 }}>
-                      {lastAttempt.score}
+                      {Math.round(lastAttempt.score * simAnim.value)}
                       <span style={{ fontSize: 22 }}>%</span>
                     </p>
                     <p style={{ margin: "4px 0 14px", fontSize: 13, color: c.muted }}>
@@ -806,25 +863,28 @@ export function StudentDashboard(props: StudentDashboardProps) {
                           Pontos a Reforçar:
                         </p>
                         <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-                          {weakSkills.slice(0, 3).map((w, i) => (
-                            <div key={i}>
-                              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 4 }}>
-                                <span style={{ color: c.ink2, fontWeight: 600 }}>{w.name}</span>
-                                <span style={{ color: c.warn, fontWeight: 700 }}>{w.accuracy}%</span>
+                          {weakSkills.slice(0, 3).map((w, i) => {
+                            const shownAccuracy = Math.round(w.accuracy * simAnim.value);
+
+                            return (
+                              <div key={i}>
+                                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 4 }}>
+                                  <span style={{ color: c.ink2, fontWeight: 600 }}>{w.name}</span>
+                                  <span style={{ color: c.warn, fontWeight: 700 }}>{shownAccuracy}%</span>
+                                </div>
+                                <div style={{ height: 7, background: c.warnSoft, borderRadius: 999, overflow: "hidden" }}>
+                                  <div
+                                    style={{
+                                      height: "100%",
+                                      borderRadius: 999,
+                                      background: c.warnFill,
+                                      width: `${shownAccuracy}%`
+                                    }}
+                                  />
+                                </div>
                               </div>
-                              <div style={{ height: 7, background: c.warnSoft, borderRadius: 999, overflow: "hidden" }}>
-                                <div
-                                  style={{
-                                    height: "100%",
-                                    borderRadius: 999,
-                                    background: c.warnFill,
-                                    width: `${w.accuracy}%`,
-                                    transition: "width .9s cubic-bezier(.22,1,.36,1)"
-                                  }}
-                                />
-                              </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </>
                     ) : (
@@ -873,7 +933,7 @@ export function StudentDashboard(props: StudentDashboardProps) {
               visible.map((r) => (
                 <div
                   key={r.id}
-                  className="d-rev"
+                  className={r.overdue ? "d-rev d-rev-urgent" : "d-rev"}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -966,6 +1026,17 @@ export function StudentDashboard(props: StudentDashboardProps) {
         .dash .d-badge:hover { border-color: ${c.brandMid}; background: ${c.brandTint}; transform: translateX(2px); }
         .dash .d-rev:hover { border-color: ${c.brandMid}; transform: translateX(3px); }
         .dash .d-ghost:hover { background: ${c.brandSoft}; border-color: ${c.fill}; }
+        .dash .d-pulse { animation: d-pulse-ring 2.2s ease-out infinite; }
+        .dash .d-rev-urgent { animation: d-rev-pulse 2.6s ease-in-out infinite; }
+        @keyframes d-pulse-ring {
+          0% { box-shadow: 0 0 0 0 hsl(var(--violet-800) / .38); }
+          70% { box-shadow: 0 0 0 9px hsl(var(--violet-800) / 0); }
+          100% { box-shadow: 0 0 0 0 hsl(var(--violet-800) / 0); }
+        }
+        @keyframes d-rev-pulse {
+          0%, 100% { box-shadow: 0 1px 2px hsl(var(--slate-950) / .03); }
+          50% { box-shadow: 0 0 0 4px hsl(var(--violet-800) / .10), 0 4px 14px hsl(var(--violet-800) / .10); }
+        }
         @media (prefers-reduced-motion: reduce) { .dash * { animation: none !important; transition: none !important; } }
       `}</style>
 

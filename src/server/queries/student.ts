@@ -268,6 +268,34 @@ export async function getStudentDashboard(userId: string) {
       )
       .find(Boolean) ?? null;
 
+  // Primeiro exercício da próxima missão: é o que deixa o cartão "Seu Próximo
+  // Passo" respondível no painel. Só o texto das alternativas viaja para o
+  // cliente — qual delas é a correta fica no servidor.
+  const nextStepExercise = nextStep
+    ? await prisma.exercise.findFirst({
+        where: {
+          missionId: nextStep.id,
+          type: "MULTIPLE_CHOICE"
+        },
+        orderBy: {
+          order: "asc"
+        },
+        select: {
+          id: true,
+          prompt: true,
+          options: {
+            select: {
+              id: true,
+              text: true
+            },
+            orderBy: {
+              id: "asc"
+            }
+          }
+        }
+      })
+    : null;
+
   return {
     tracks,
     pendingReviews,
@@ -279,7 +307,8 @@ export async function getStudentDashboard(userId: string) {
     totalMissions,
     completedMissions,
     progressPercent: calculateTrackProgressPercent(completedMissions, totalMissions),
-    nextStep
+    nextStep,
+    nextStepExercise
   };
 }
 
