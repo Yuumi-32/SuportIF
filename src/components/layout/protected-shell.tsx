@@ -19,7 +19,7 @@ const roleLabels: Record<UserRole, string> = {
 const navByRole: Record<UserRole, Array<{ href: string; label: string }>> = {
   STUDENT: [
     { href: "/app", label: "Início" },
-    { href: "/app/trilhas", label: "Trilhas" },
+    { href: "/app/trilhas", label: "Módulos" },
     { href: "/app/simulados", label: "Simulados" },
     { href: "/app/revisoes", label: "Revisões" }
   ],

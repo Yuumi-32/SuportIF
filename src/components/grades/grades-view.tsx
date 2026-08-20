@@ -267,7 +267,7 @@ export function GradesView({ studentName, data }: GradesViewProps) {
                       href="/app/trilhas"
                       className="text-sm font-semibold text-violet-700 underline-offset-2 hover:underline"
                     >
-                      Ver trilhas
+                      Ver módulos
                     </Link>
                   }
                 />

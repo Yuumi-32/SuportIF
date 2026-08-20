@@ -33,6 +33,14 @@ function easeOutCubic(p: number) {
   return 1 - Math.pow(1 - p, 3);
 }
 
+/** Busca sem acento: "programacao" acha "Programação". */
+function normalize(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
 function TrackGlyph({ icon, title }: { icon: string; title: string }) {
   const Icon = getTrackIcon(icon);
   return (
@@ -72,6 +80,43 @@ const categoryBadgeStyle: React.CSSProperties = {
   flexShrink: 0,
 };
 
+const cardStyle: React.CSSProperties = {
+  background: theme.card,
+  border: `1px solid ${theme.line}`,
+  borderRadius: 12,
+  boxShadow: "0 1px 2px rgba(2,8,23,.04)",
+  padding: 24,
+  display: "flex",
+  flexDirection: "column",
+  transition: "transform .2s ease, box-shadow .2s ease, border-color .2s ease",
+};
+
+const ctaBaseStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8,
+  height: 42,
+  padding: "0 18px",
+  borderRadius: 7,
+  fontWeight: 600,
+  fontSize: 14,
+  cursor: "pointer",
+  textDecoration: "none",
+  transition: "all .18s",
+};
+
+/**
+ * Duas colunas, como no desenho. O `minmax(420px, …)` é o que garante isso na
+ * largura cheia da área do aluno e, de quebra, colapsa sozinho quando o bloco
+ * é estreito — o layout livre redimensiona o bloco, e media query só enxerga a
+ * janela.
+ */
+const cardsGrid: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))",
+  gap: 18,
+};
 
 /** Menos itens em bloco estreito: a largura é que define o nível de detalhe. */
 function limitBySize<T>(items: T[], size: BlockSize, small: number, medium: number) {
@@ -120,29 +165,36 @@ export function StudentTracks({
       setTCount(easeOutCubic(p));
       if (p < 1) raf = requestAnimationFrame(step);
     });
-    return () => cancelAnimationFrame(raf);
+    // Aba em segundo plano congela o requestAnimationFrame. Sem esta rede de
+    // segurança, quem abre a página numa aba de fundo encontra todos os
+    // números parados em zero até a aba receber foco.
+    const fallback = window.setTimeout(() => setTCount((value) => (value === 0 ? 1 : value)), 1500);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(fallback);
+    };
   }, []);
 
   const stats = [
     {
-      label: "Na minha jornada",
+      label: "Na Minha Jornada",
       value: String(Math.round(baseStats.active * tCount)),
-      sub: baseStats.active === 1 ? "trilha ativa" : "trilhas ativas",
+      sub: baseStats.active === 1 ? "módulo ativo" : "módulos ativos",
     },
     {
-      label: "Missões concluídas",
+      label: "Missões Concluídas",
       value: String(Math.round(baseStats.totalDone * tCount)),
       sub: `de ${baseStats.totalMissions} no total`,
     },
     {
-      label: "Progresso médio",
+      label: "Progresso Médio",
       value: `${Math.round(baseStats.avg * tCount)}%`,
-      sub: "entre suas trilhas",
+      sub: "entre seus módulos",
     },
     {
-      label: "Trilhas concluídas",
+      label: "Módulos Concluídos",
       value: String(Math.round(baseStats.finished * tCount)),
-      sub: baseStats.finished === 1 ? "trilha 100%" : "trilhas 100%",
+      sub: baseStats.finished === 1 ? "módulo 100%" : "módulos 100%",
     },
   ];
 
@@ -156,10 +208,13 @@ export function StudentTracks({
     return list;
   }, [allTracks]);
 
-  const query = search.trim().toLowerCase();
+  const query = normalize(search.trim());
   const matches = (t: StudentTrackItem) =>
     (category === "Todas" || t.area === category) &&
-    (query === "" || t.title.toLowerCase().includes(query) || t.area.toLowerCase().includes(query));
+    (query === "" ||
+      normalize(t.title).includes(query) ||
+      normalize(t.area).includes(query) ||
+      normalize(t.description).includes(query));
 
   const visEnrolled = enrolled.filter(matches);
   const visAvailable = available.filter(matches);
@@ -186,10 +241,10 @@ export function StudentTracks({
                 fontWeight: 600,
               }}
             >
-              CAMINHOS DE ESTUDO DISPONÍVEIS
+              CAMINHOS DE ESTUDOS DISPONÍVEIS
             </span>
             <h1 style={{ margin: "14px 0 0", fontSize: 32, fontWeight: 900, lineHeight: 1.12, color: theme.ink }}>
-              Minhas trilhas
+              Meus Módulos
             </h1>
             {size !== "P" ? (
               <p style={{ margin: "10px 0 0", maxWidth: "62ch", fontSize: 15.5, lineHeight: 1.6, color: theme.ink2 }}>
@@ -254,12 +309,12 @@ export function StudentTracks({
               animationDelay: ".08s",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-              <div style={{ position: "relative", width: 300, maxWidth: "100%" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <div style={{ position: "relative", width: 200, maxWidth: "100%", flexShrink: 0 }}>
                 <span
                   style={{
                     position: "absolute",
-                    left: 12,
+                    left: 10,
                     top: "50%",
                     transform: "translateY(-50%)",
                     display: "flex",
@@ -268,8 +323,8 @@ export function StudentTracks({
                   }}
                 >
                   <svg
-                    width="16"
-                    height="16"
+                    width="15"
+                    height="15"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -294,7 +349,7 @@ export function StudentTracks({
                     color: theme.ink,
                     transition: "border-color .15s",
                   }}
-                  placeholder="Buscar trilha..."
+                  placeholder="Buscar módulo..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -307,8 +362,8 @@ export function StudentTracks({
                       right: 8,
                       top: "50%",
                       transform: "translateY(-50%)",
-                      width: 24,
-                      height: 24,
+                      width: 22,
+                      height: 22,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -316,7 +371,7 @@ export function StudentTracks({
                       border: "none",
                       borderRadius: "50%",
                       color: theme.muted,
-                      fontSize: 15,
+                      fontSize: 14,
                       lineHeight: 1,
                       cursor: "pointer",
                     }}
@@ -374,7 +429,11 @@ export function StudentTracks({
               </div>
             </div>
             <p style={{ margin: 0, fontSize: 13, color: theme.faint, fontWeight: 500 }}>
-              Mostrando <b style={{ fontWeight: 800, color: theme.muted }}>{visibleTotal}</b> de {allTracks.length} trilhas
+              Mostrando{" "}
+              <b style={{ fontWeight: 800, color: theme.muted }}>
+                {visibleTotal} de {allTracks.length}
+              </b>{" "}
+              módulos
             </p>
           </div>
         </>
@@ -388,7 +447,7 @@ export function StudentTracks({
           {visEnrolled.length > 0 ? (
             <div style={{ animation: "st-riseIn .5s ease both", animationDelay: ".1s" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-                <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: theme.ink }}>Em andamento</h2>
+                <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: theme.ink }}>Em Andamento</h2>
                 <span
                   style={{
                     display: "inline-flex",
@@ -407,25 +466,12 @@ export function StudentTracks({
                   {visEnrolled.length}
                 </span>
               </div>
-              <div className="st-cards" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 18 }}>
+              <div className="st-cards" style={cardsGrid}>
                 {limitBySize(visEnrolled, size, 1, 2).map((t) => {
                   const pct = t.progressPercent;
-                  const label = pct === 0 ? "Começar trilha" : pct >= 100 ? "Revisar trilha" : "Continuar estudando";
+                  const label = pct === 0 ? "Começar Módulo" : pct >= 100 ? "Revisar Módulo" : "Continuar Estudando";
                   return (
-                    <div
-                      key={t.id}
-                      className="st-card"
-                      style={{
-                        background: theme.card,
-                        border: `1px solid ${theme.line}`,
-                        borderRadius: 12,
-                        boxShadow: "0 1px 2px rgba(2,8,23,.04)",
-                        padding: 24,
-                        display: "flex",
-                        flexDirection: "column",
-                        transition: "transform .2s ease, box-shadow .2s ease, border-color .2s ease",
-                      }}
-                    >
+                    <div key={t.id} className="st-card" style={cardStyle}>
                       <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
                         <TrackGlyph icon={t.coverIcon} title={t.title} />
                         <h3 style={{ margin: 0, flex: 1, minWidth: 0, fontSize: 17, fontWeight: 700, color: theme.ink }}>
@@ -473,22 +519,11 @@ export function StudentTracks({
                         href={`/app/trilhas/${t.slug}`}
                         className="st-cta-primary"
                         style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: 8,
-                          height: 42,
-                          padding: "0 18px",
+                          ...ctaBaseStyle,
                           background: theme.fill,
                           color: "#fff",
                           border: "none",
-                          borderRadius: 7,
-                          fontWeight: 600,
-                          fontSize: 14,
-                          cursor: "pointer",
-                          textDecoration: "none",
                           boxShadow: "0 2px 6px rgba(76,29,149,.22)",
-                          transition: "all .18s",
                         }}
                       >
                         {label} <span style={{ fontSize: 15 }}>→</span>
@@ -510,7 +545,7 @@ export function StudentTracks({
           {visAvailable.length > 0 ? (
             <div style={{ animation: "st-riseIn .5s ease both", animationDelay: ".12s" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-                <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: theme.ink }}>Para começar depois</h2>
+                <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: theme.ink }}>Para Começar Depois:</h2>
                 <span
                   style={{
                     display: "inline-flex",
@@ -529,22 +564,9 @@ export function StudentTracks({
                   {visAvailable.length}
                 </span>
               </div>
-              <div className="st-cards" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 18 }}>
+              <div className="st-cards" style={cardsGrid}>
                 {limitBySize(visAvailable, size, 1, 2).map((t) => (
-                  <div
-                    key={t.id}
-                    className="st-card"
-                    style={{
-                      background: theme.card,
-                      border: `1px solid ${theme.line}`,
-                      borderRadius: 12,
-                      boxShadow: "0 1px 2px rgba(2,8,23,.04)",
-                      padding: 24,
-                      display: "flex",
-                      flexDirection: "column",
-                      transition: "transform .2s ease, box-shadow .2s ease, border-color .2s ease",
-                    }}
-                  >
+                  <div key={t.id} className="st-card" style={cardStyle}>
                     <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
                       <TrackGlyph icon={t.coverIcon} title={t.title} />
                       <h3 style={{ margin: 0, flex: 1, minWidth: 0, fontSize: 17, fontWeight: 700, color: theme.ink }}>
@@ -580,24 +602,14 @@ export function StudentTracks({
                         type="submit"
                         className="st-cta-ghost"
                         style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: 8,
+                          ...ctaBaseStyle,
                           width: "100%",
-                          height: 42,
-                          padding: "0 18px",
                           background: theme.card,
                           color: theme.brandInk,
-                          border: `1px solid ${theme.brandLine2}`,
-                          borderRadius: 7,
-                          fontWeight: 600,
-                          fontSize: 14,
-                          cursor: "pointer",
-                          transition: "all .18s",
+                          border: `1px solid ${theme.brandMid}`,
                         }}
                       >
-                        Adicionar à minha jornada <span style={{ fontSize: 15 }}>+</span>
+                        Adicionar à Minha Jornada <span style={{ fontSize: 15 }}>+</span>
                       </button>
                     </form>
                   </div>
@@ -616,7 +628,7 @@ export function StudentTracks({
                 borderRadius: 12,
               }}
             >
-              <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: theme.ink2 }}>Nenhuma trilha encontrada</p>
+              <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: theme.ink2 }}>Nenhum Módulo Encontrado</p>
               <p style={{ margin: "6px 0 0", fontSize: 13.5, color: theme.faint }}>
                 Ajuste a busca ou troque a categoria selecionada.
               </p>
@@ -634,7 +646,7 @@ export function StudentTracks({
         .student-tracks .st-card:hover { transform: translateY(-3px); box-shadow: 0 14px 30px rgba(2,8,23,.08); border-color: ${theme.brandLine2}; }
         .student-tracks .st-search:focus { border-color: ${theme.fill}; }
         .student-tracks .st-cta-primary:hover { filter: brightness(.97); }
-        .student-tracks .st-cta-ghost:hover { background: ${theme.brandTint}; }
+        .student-tracks .st-cta-ghost:hover { background: ${theme.brandSoft}; }
         @keyframes st-riseIn { from { transform: translateY(14px); } to { transform: none; } }
         @media (max-width: 900px) { .student-tracks .st-stats { grid-template-columns: repeat(2,1fr) !important; } .student-tracks .st-cards { grid-template-columns: 1fr !important; } }
         @media (max-width: 560px) { .student-tracks .st-stats { grid-template-columns: 1fr !important; } }

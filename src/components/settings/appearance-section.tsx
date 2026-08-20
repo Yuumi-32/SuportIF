@@ -344,7 +344,7 @@ export function AppearanceSection({ initial }: { initial: AppearanceSettings }) 
                 </span>
               </span>
               <span className="mt-1 block text-xs leading-5 text-slate-600">
-                Mover, redimensionar e ocultar os blocos com cliques diretos — em Início, Trilhas,
+                Mover, redimensionar e ocultar os blocos com cliques diretos — em Início, Módulos,
                 Simulados e Revisões.
               </span>
             </button>

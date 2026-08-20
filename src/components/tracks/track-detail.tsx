@@ -206,7 +206,7 @@ export function TrackDetail({ enrolled, summary }: TrackDetailProps) {
           alignSelf: "flex-start",
         }}
       >
-        <span style={{ fontSize: 16 }}>←</span> Minhas trilhas
+        <span style={{ fontSize: 16 }}>←</span> Meus Módulos
       </Link>
 
       {/* TRACK HEADER */}
