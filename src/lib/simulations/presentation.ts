@@ -131,6 +131,41 @@ export function formatReviewDueText(dueAt: Date, now = new Date()) {
   return overdueDays === 1 ? "venceu ontem" : `venceu há ${overdueDays} dias`;
 }
 
+/** Tom da etiqueta de prazo: quanto mais perto do vencimento, mais quente. */
+export type ReviewDueTone = "overdue" | "today" | "soon" | "later";
+
+/**
+ * Etiqueta curta de prazo usada nos cartões de revisão do painel.
+ *
+ * Diferente de `formatReviewDueText`, que descreve o vencimento por extenso na
+ * fila de revisões, aqui o texto precisa caber numa pílula ao lado do título —
+ * e vir junto do tom que colore essa pílula.
+ */
+export function formatReviewChip(dueAt: Date, now = new Date()): { text: string; tone: ReviewDueTone } {
+  const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.round(
+    (startOfDay(dueAt).getTime() - startOfDay(now).getTime()) / 86_400_000
+  );
+
+  if (diffDays < 0) {
+    const overdueDays = Math.abs(diffDays);
+    return {
+      text: overdueDays === 1 ? "Venceu Ontem" : `Atrasada ${overdueDays} Dias`,
+      tone: "overdue"
+    };
+  }
+
+  if (diffDays === 0) {
+    return { text: "Revisar Hoje", tone: "today" };
+  }
+
+  if (diffDays === 1) {
+    return { text: "Amanhã", tone: "soon" };
+  }
+
+  return { text: `Em ${diffDays} Dias`, tone: diffDays <= 3 ? "soon" : "later" };
+}
+
 export function getBestSimulationScore(attempts: SimulationAttemptView[]) {
   if (attempts.length === 0) {
     return null;

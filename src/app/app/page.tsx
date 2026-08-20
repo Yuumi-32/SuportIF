@@ -3,7 +3,7 @@ import { pageLayout } from "@/lib/appearance/layout";
 import { parseAppearance } from "@/lib/appearance/settings";
 import { requireRole } from "@/lib/auth/session";
 import {
-  formatReviewDueText,
+  formatReviewChip,
   getSimulationDescriptionText,
   getSimulationTypeLabel,
   getSkillDisplayName,
@@ -30,14 +30,19 @@ export default async function StudentAppPage({
     dashboard.tracks[0] ??
     null;
 
-  const reviews: DashboardReview[] = dashboard.pendingReviews.slice(0, 5).map((review) => ({
-    id: review.id,
-    missionId: review.mission.id,
-    title: review.mission.title,
-    trackLabel: `${review.mission.module.track.title} · ${review.mission.module.title}`,
-    dueText: formatReviewDueText(review.dueAt),
-    overdue: review.status === "OVERDUE"
-  }));
+  const reviews: DashboardReview[] = dashboard.pendingReviews.slice(0, 5).map((review) => {
+    const due = formatReviewChip(review.dueAt);
+
+    return {
+      id: review.id,
+      missionId: review.mission.id,
+      title: review.mission.title,
+      trackLabel: `${review.mission.module.track.title} · ${review.mission.module.title}`,
+      dueText: due.text,
+      dueTone: due.tone,
+      overdue: review.status === "OVERDUE"
+    };
+  });
 
   return (
     <StudentDashboard
@@ -63,7 +68,8 @@ export default async function StudentAppPage({
       badges={dashboard.recentBadges.map((userBadge) => ({
         id: userBadge.id,
         title: userBadge.badge.title,
-        subtitle: userBadge.badge.description
+        subtitle: userBadge.badge.description,
+        icon: userBadge.badge.icon
       }))}
       focusTrack={
         focus

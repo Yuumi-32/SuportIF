@@ -27,5 +27,9 @@ export const theme: Record<string, string> = {
   onFill: "#fff",
   warn: "#b45309",
   warnFill: "#f59e0b",
-  warnSoft: "#fef3c7"
+  warnSoft: "#fef3c7",
+  danger: "#b91c1c",
+  dangerSoft: "#fee2e2",
+  ok: "#15803d",
+  okSoft: "#dcfce7"
 };

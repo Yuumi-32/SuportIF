@@ -6,6 +6,7 @@ import { useState } from "react";
 import { GuidedExerciseCard, type GuidedExercise } from "@/components/dashboard/guided-exercise";
 import { LayoutCanvas, type CanvasBlock } from "@/components/layout/layout-canvas";
 import type { BlockSize, DashboardLayoutItem } from "@/lib/appearance/layout";
+import type { ReviewDueTone } from "@/lib/simulations/presentation";
 import { useRevealProgress } from "@/lib/motion/reveal";
 import { theme as c } from "@/lib/appearance/palette";
 
@@ -41,10 +42,11 @@ export type DashboardReview = {
   title: string;
   trackLabel: string;
   dueText: string;
+  dueTone: ReviewDueTone;
   overdue: boolean;
 };
 
-export type DashboardBadge = { id: string; title: string; subtitle: string };
+export type DashboardBadge = { id: string; title: string; subtitle: string; icon: string };
 
 export type DashboardWeakSkill = { name: string; accuracy: number };
 
@@ -78,13 +80,16 @@ type StudentDashboardProps = {
 
 const XP_PER_LEVEL = 250;
 
+/// Sombra levemente tingida de marca: separa os cartões de destaque (hero,
+/// próximo passo) do resto da página sem virar uma caixa mais escura.
+const brandShadow = (spread: string) => `${spread} hsl(var(--violet-800) / 0.05)`;
 
 const panel: React.CSSProperties = {
   background: c.card,
   border: `1px solid ${c.line}`,
   borderRadius: 8,
   boxShadow: "0 1px 2px hsl(var(--slate-950) / 0.03)",
-  padding: 22
+  padding: 24
 };
 
 const chipStyle: React.CSSProperties = {
@@ -103,15 +108,16 @@ const ctaStyle: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   gap: 8,
-  height: 40,
-  padding: "0 16px",
+  height: 42,
+  padding: "0 18px",
   background: c.fill,
   color: c.onFill,
   border: "none",
   borderRadius: 6,
   fontWeight: 600,
-  fontSize: 13.5,
+  fontSize: 14,
   textDecoration: "none",
+  boxShadow: "0 2px 6px hsl(var(--violet-800) / 0.25)",
   transition: "all .18s"
 };
 
@@ -121,22 +127,77 @@ const ghostStyle: React.CSSProperties = {
   justifyContent: "center",
   gap: 7,
   height: 38,
-  padding: "0 14px",
+  padding: "0 16px",
   background: c.card,
   color: c.brandInk,
-  border: `1px solid ${c.brandLine2}`,
+  border: `1px solid ${c.brandMid}`,
   borderRadius: 6,
   fontWeight: 600,
-  fontSize: 13,
+  fontSize: 13.5,
   textDecoration: "none",
   transition: "all .18s"
 };
 
+/// Etiqueta de prazo da revisão: quanto mais perto do vencimento, mais quente.
+const dueToneColors: Record<ReviewDueTone, { background: string; color: string }> = {
+  overdue: { background: c.dangerSoft, color: c.danger },
+  today: { background: c.dangerSoft, color: c.danger },
+  soon: { background: c.warnSoft, color: c.warn },
+  later: { background: c.okSoft, color: c.ok }
+};
+
+/// O ícone da badge vem do banco como nome; aqui vira o glifo do cartão.
+const badgeGlyphs: Record<string, string> = {
+  flame: "🔥",
+  "calendar-check": "✓",
+  "clipboard-check": "✓",
+  check: "✓",
+  sparkle: "★",
+  star: "★",
+  "trending-up": "↗",
+  target: "◎"
+};
+
+function badgeGlyph(icon: string) {
+  return badgeGlyphs[icon] ?? "★";
+}
+
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: c.ink, lineHeight: 1.25 }}>
+    <h2
+      style={{
+        margin: 0,
+        display: "flex",
+        alignItems: "center",
+        gap: 9,
+        fontSize: 22,
+        fontWeight: 800,
+        color: c.ink,
+        lineHeight: 1.25
+      }}
+    >
       {children}
     </h2>
+  );
+}
+
+function ClockIcon() {
+  return (
+    <svg
+      width="21"
+      height="21"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={c.brandInk}
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ flexShrink: 0 }}
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </svg>
   );
 }
 
@@ -161,6 +222,31 @@ function ProgressBar({ percent }: { percent: number }) {
       />
     </div>
   );
+}
+
+type MissionState = "done" | "current" | "locked";
+
+/**
+ * Estado de cada missão dentro do módulo aberto no mapa.
+ *
+ * Só a primeira pendente de um módulo destravado fica disponível — as demais
+ * aparecem trancadas, que é o que o mapa promete ao mostrar o caminho.
+ */
+function missionStates(missions: DashboardMission[], moduleUnlocked: boolean): MissionState[] {
+  let currentTaken = false;
+
+  return missions.map((mission) => {
+    if (mission.completed) {
+      return "done";
+    }
+
+    if (moduleUnlocked && !currentTaken) {
+      currentTaken = true;
+      return "current";
+    }
+
+    return "locked";
+  });
 }
 
 export function StudentDashboard(props: StudentDashboardProps) {
@@ -208,23 +294,27 @@ export function StudentDashboard(props: StudentDashboardProps) {
 
   const stats = [
     {
-      title: "XP acumulado",
+      title: "XP Atual",
       value: String(Math.round(totalXp * statsAnim.value)),
+      descBold: "",
       desc: "Seu avanço acumulado."
     },
     {
-      title: "Nível atual",
+      title: "Nível Atual",
       value: String(Math.round(level * statsAnim.value)),
+      descBold: "",
       desc: "Você está neste nível."
     },
     {
-      title: "Progresso geral",
+      title: "Progresso Geral",
       value: `${Math.round(progressPercent * statsAnim.value)}%`,
-      desc: `${completedMissions}/${totalMissions} missões concluídas.`
+      descBold: `${completedMissions}/${totalMissions}`,
+      desc: " missões concluídas."
     },
     {
-      title: "Revisões ativas",
+      title: "Revisões Ativas",
       value: String(Math.round(pendingReviewCount * statsAnim.value)),
+      descBold: "",
       desc: "Para revisar hoje ou em breve."
     }
   ];
@@ -233,6 +323,10 @@ export function StudentDashboard(props: StudentDashboardProps) {
   const fillWidth =
     modules.length > 1 ? `${(moduleDoneCount / (modules.length - 1)) * 100 * mapAnim.value}%` : "0%";
 
+  const moduleIsUnlocked = (index: number) =>
+    index === 0 ||
+    modules.slice(0, index).every((m) => m.totalMissions > 0 && m.completedMissions >= m.totalMissions);
+
   function renderHero(size: BlockSize) {
     return (
       <div
@@ -240,39 +334,74 @@ export function StudentDashboard(props: StudentDashboardProps) {
         style={{
           ...panel,
           border: `1px solid ${c.brandLine}`,
-          padding: size === "P" ? 20 : 26,
+          boxShadow: brandShadow("0 6px 22px"),
+          padding: size === "P" ? 20 : 28,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          gap: 28,
+          gap: 32,
           flexWrap: "wrap"
         }}
       >
         <div style={{ minWidth: 220, flex: 1 }}>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
             {size !== "P" ? (
-              <span style={{ ...chipStyle, background: c.chip, color: c.ink2, fontWeight: 600 }}>
+              <span
+                style={{
+                  ...chipStyle,
+                  background: c.chip,
+                  color: c.ink2,
+                  padding: "4px 10px",
+                  fontSize: 12.5,
+                  fontWeight: 600
+                }}
+              >
                 ÁREA DO ALUNO
               </span>
             ) : null}
-            <span style={{ ...chipStyle, background: c.fill, color: c.onFill }}>★ {heroXp} XP</span>
-            <span style={chipStyle}>Nível {level}</span>
+            <span style={{ ...chipStyle, background: c.fill, color: c.onFill, padding: "4px 11px", fontSize: 12.5 }}>
+              ★ {heroXp} XP
+            </span>
+            <span style={{ ...chipStyle, padding: "4px 11px", fontSize: 12.5 }}>Nível {level}</span>
           </div>
           <h1
             style={{
               margin: "14px 0 0",
-              fontSize: size === "P" ? 22 : 30,
+              fontSize: size === "P" ? 22 : 32,
               fontWeight: 900,
-              lineHeight: 1.14,
+              lineHeight: 1.12,
               color: c.ink
             }}
           >
             Olá, {name}!
           </h1>
           {size !== "P" ? (
-            <p style={{ margin: "10px 0 0", maxWidth: "46ch", fontSize: 15, lineHeight: 1.6, color: c.ink2 }}>
-              Continue sua jornada e priorize hoje os pontos que merecem atenção.
-            </p>
+            <>
+              <p
+                style={{
+                  margin: "10px 0 0",
+                  maxWidth: "46ch",
+                  fontSize: 16,
+                  lineHeight: 1.6,
+                  color: c.ink2,
+                  textAlign: "justify"
+                }}
+              >
+                Continue sua jornada e priorize hoje os pontos que merecem atenção.
+              </p>
+              <p
+                style={{
+                  margin: "8px 0 0",
+                  maxWidth: "46ch",
+                  fontSize: 16,
+                  lineHeight: 1.6,
+                  color: c.ink2,
+                  textAlign: "justify"
+                }}
+              >
+                Você está a poucos passos do próximo nível.
+              </p>
+            </>
           ) : null}
           <Link
             href={nextStep ? `/app/missoes/${nextStep.missionId}` : "/app/trilhas"}
@@ -312,12 +441,12 @@ export function StudentDashboard(props: StudentDashboardProps) {
                   justifyContent: "center"
                 }}
               >
-                <span style={{ fontSize: 12, color: c.muted, fontWeight: 600 }}>NÍVEL</span>
+                <span style={{ fontSize: 12, color: c.muted, fontWeight: 600, letterSpacing: ".02em" }}>NÍVEL</span>
                 <span style={{ fontSize: 34, fontWeight: 900, color: c.brandInk, lineHeight: 1 }}>{level}</span>
               </div>
             </div>
             <span style={{ fontSize: 12.5, color: c.muted, fontWeight: 600, textAlign: "center" }}>
-              {xpInLevel}/{XP_PER_LEVEL} XP para o nível {level + 1}
+              {xpInLevel} / {XP_PER_LEVEL} XP até o nível {level + 1}
             </span>
           </div>
         ) : null}
@@ -327,9 +456,17 @@ export function StudentDashboard(props: StudentDashboardProps) {
 
   function renderNextStep(size: BlockSize) {
     return (
-      <div style={{ ...panel, border: `1px solid ${c.brandMid}`, display: "flex", flexDirection: "column" }}>
+      <div
+        style={{
+          ...panel,
+          border: `1px solid ${c.brandMid}`,
+          boxShadow: brandShadow("0 4px 16px"),
+          display: "flex",
+          flexDirection: "column"
+        }}
+      >
         <span style={chipStyle}>HOJE</span>
-        <h2 style={{ margin: "12px 0 0", fontSize: 19, fontWeight: 700, color: c.ink }}>Seu Próximo Passo:</h2>
+        <h2 style={{ margin: "12px 0 0", fontSize: 20, fontWeight: 700, color: c.ink }}>Seu Próximo Passo:</h2>
 
         {nextStep ? (
           <>
@@ -338,7 +475,7 @@ export function StudentDashboard(props: StudentDashboardProps) {
                 <p
                   style={{
                     margin: "14px 0 0",
-                    fontSize: 12.5,
+                    fontSize: 13,
                     fontWeight: 600,
                     color: c.brandInk,
                     textTransform: "uppercase",
@@ -350,7 +487,7 @@ export function StudentDashboard(props: StudentDashboardProps) {
                 <Rule />
               </>
             ) : null}
-            <h3 style={{ margin: "8px 0 0", fontSize: 18, fontWeight: 700, color: c.ink }}>{nextStep.title}</h3>
+            <h3 style={{ margin: "8px 0 0", fontSize: 19, fontWeight: 700, color: c.ink }}>{nextStep.title}</h3>
             {size !== "P" ? (
               <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.6, color: c.ink2 }}>
                 {nextStep.shortDescription}
@@ -383,7 +520,7 @@ export function StudentDashboard(props: StudentDashboardProps) {
                 >
                   Exercício guiado
                 </p>
-                <p style={{ margin: "8px 0 0", fontSize: 14.5, fontWeight: 700, color: c.ink, lineHeight: 1.5 }}>
+                <p style={{ margin: "8px 0 0", fontSize: 15, fontWeight: 700, color: c.ink, lineHeight: 1.5 }}>
                   {nextStep.guidedPrompt}
                 </p>
                 <p style={{ margin: "10px 0 0", fontSize: 13, color: c.muted }}>
@@ -456,7 +593,7 @@ export function StudentDashboard(props: StudentDashboardProps) {
                     flexShrink: 0
                   }}
                 >
-                  ★
+                  {badgeGlyph(b.icon)}
                 </span>
                 <div style={{ minWidth: 0 }}>
                   <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: c.ink }}>{b.title}</p>
@@ -489,17 +626,20 @@ export function StudentDashboard(props: StudentDashboardProps) {
         style={{
           display: "grid",
           gridTemplateColumns: `repeat(auto-fit, minmax(${size === "G" ? 190 : 140}px, 1fr))`,
-          gap: 14
+          gap: 16
         }}
       >
         {visible.map((st) => (
-          <div key={st.title} className="d-stat" style={{ ...panel, padding: 18, transition: "all .2s" }}>
+          <div key={st.title} className="d-stat" style={{ ...panel, padding: 20, transition: "all .2s" }}>
             <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: c.muted }}>{st.title}</p>
-            <p style={{ margin: "8px 0 0", fontSize: 28, fontWeight: 900, color: c.brandInk, lineHeight: 1 }}>
+            <p style={{ margin: "8px 0 0", fontSize: 30, fontWeight: 900, color: c.brandInk, lineHeight: 1 }}>
               {st.value}
             </p>
             {size === "G" ? (
-              <p style={{ margin: "8px 0 0", fontSize: 12.5, lineHeight: 1.45, color: c.faint }}>{st.desc}</p>
+              <p style={{ margin: "8px 0 0", fontSize: 12.5, lineHeight: 1.45, color: c.faint }}>
+                {st.descBold ? <b style={{ fontWeight: 800 }}>{st.descBold}</b> : null}
+                {st.desc}
+              </p>
             ) : null}
           </div>
         ))}
@@ -519,14 +659,27 @@ export function StudentDashboard(props: StudentDashboardProps) {
       );
     }
 
+    const selectedIndex = modules.findIndex((m) => m.id === selectedModule?.id);
+    const selectedUnlocked = selectedIndex >= 0 ? moduleIsUnlocked(selectedIndex) : false;
+    const selectedDone =
+      !!selectedModule &&
+      selectedModule.totalMissions > 0 &&
+      selectedModule.completedMissions >= selectedModule.totalMissions;
+
+    const status = selectedDone
+      ? { text: "Módulo concluído", background: c.brandSoft, color: c.brandInk }
+      : selectedUnlocked
+        ? { text: "Em Andamento", background: c.warnSoft, color: c.warn }
+        : { text: "Bloqueado — conclua o módulo anterior", background: c.chip, color: c.muted };
+
     return (
       <div ref={mapAnim.ref} style={panel}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
           <div>
             <span style={{ ...chipStyle, border: `1px solid ${c.brandLine2}` }}>SUA TRILHA EM FOCO</span>
-            <h2 style={{ margin: "10px 0 0", fontSize: 21, fontWeight: 800, color: c.ink }}>{focusTrack.title}</h2>
+            <h2 style={{ margin: "10px 0 0", fontSize: 22, fontWeight: 800, color: c.ink }}>{focusTrack.title}</h2>
             <Rule />
-            <p style={{ margin: "6px 0 0", fontSize: 13.5, color: c.muted }}>
+            <p style={{ margin: "4px 0 0", fontSize: 13.5, color: c.muted }}>
               {size === "P"
                 ? `${moduleDoneCount}/${modules.length} módulos concluídos.`
                 : "Toque em um módulo para ver as missões:"}
@@ -558,8 +711,8 @@ export function StudentDashboard(props: StudentDashboardProps) {
             </Link>
           </div>
         ) : (
-          <div style={{ marginTop: 22, overflowX: "auto", padding: "4px 2px 6px" }}>
-            <div style={{ position: "relative", display: "flex", justifyContent: "space-between", minWidth: 460 }}>
+          <div style={{ marginTop: 24, overflowX: "auto", padding: "4px 2px 6px" }}>
+            <div style={{ position: "relative", display: "flex", justifyContent: "space-between", minWidth: 540 }}>
               <div style={{ position: "absolute", left: 24, right: 24, top: 23, height: 4, background: c.line, borderRadius: 2 }} />
               <div
                 style={{
@@ -574,9 +727,7 @@ export function StudentDashboard(props: StudentDashboardProps) {
               />
               {modules.map((mod, i) => {
                 const done = mod.totalMissions > 0 && mod.completedMissions >= mod.totalMissions;
-                const unlocked =
-                  i === 0 ||
-                  modules.slice(0, i).every((m) => m.totalMissions > 0 && m.completedMissions >= m.totalMissions);
+                const unlocked = moduleIsUnlocked(i);
                 const isSelected = mod.id === selectedModule?.id;
                 // Módulo atual: destravado mas ainda não concluído. Pulsa para
                 // dizer onde a jornada está parada — sem competir com o anel de
@@ -597,7 +748,7 @@ export function StudentDashboard(props: StudentDashboardProps) {
                       flexDirection: "column",
                       alignItems: "center",
                       gap: 9,
-                      width: 100,
+                      width: 104,
                       padding: 0
                     }}
                   >
@@ -610,24 +761,26 @@ export function StudentDashboard(props: StudentDashboardProps) {
                         width: 46,
                         height: 46,
                         borderRadius: "50%",
-                        fontSize: 15,
+                        fontSize: 16,
                         fontWeight: 800,
                         background: done ? c.fill : unlocked ? c.card : c.chip,
                         color: done ? c.onFill : unlocked ? c.brandInk : c.faint,
-                        border: done || unlocked ? `3px solid ${c.fill}` : `1px solid ${c.line2}`,
-                        boxShadow: isSelected ? `0 0 0 4px ${c.brandSoft}` : "none",
-                        transition: "all .2s"
+                        border: done || unlocked ? `3px solid ${c.fill}` : `3px solid ${c.line2}`,
+                        boxShadow: isSelected ? `0 0 0 4px ${c.brandLine2}` : "none",
+                        transition: "box-shadow .2s ease"
                       }}
                     >
                       {done ? "✓" : mod.order}
                     </span>
                     <span
                       style={{
-                        fontSize: 12,
-                        fontWeight: isSelected ? 800 : 600,
+                        fontSize: 12.5,
+                        fontWeight: 600,
                         color: isSelected ? c.brandInk : unlocked ? c.ink2 : c.faint,
+                        maxWidth: 96,
                         textAlign: "center",
-                        lineHeight: 1.3
+                        lineHeight: 1.3,
+                        transition: "color .2s"
                       }}
                     >
                       {mod.title}
@@ -640,79 +793,88 @@ export function StudentDashboard(props: StudentDashboardProps) {
         )}
 
         {size === "G" && selectedModule ? (
-          <div style={{ marginTop: 20, background: c.surface, border: `1px solid ${c.line}`, borderRadius: 8, padding: 18 }}>
+          <div style={{ marginTop: 20, background: c.surface, border: `1px solid ${c.line}`, borderRadius: 8, padding: 20 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
               <div>
-                <span
-                  style={{
-                    ...chipStyle,
-                    background: selectedModule.completedMissions >= selectedModule.totalMissions ? c.fill : c.brandSoft,
-                    color: selectedModule.completedMissions >= selectedModule.totalMissions ? c.onFill : c.brandInk
-                  }}
-                >
-                  {selectedModule.completedMissions}/{selectedModule.totalMissions} missões
-                </span>
-                <h3 style={{ margin: "10px 0 0", fontSize: 17, fontWeight: 700, color: c.ink }}>
+                <span style={{ ...chipStyle, background: status.background, color: status.color }}>{status.text}</span>
+                <h3 style={{ margin: "10px 0 0", fontSize: 18, fontWeight: 700, color: c.ink }}>
                   {selectedModule.title}
                 </h3>
               </div>
-              <Link href={`/app/modulos/${selectedModule.id}`} className="d-cta" style={{ ...ctaStyle, height: 38 }}>
-                Abrir módulo <span>→</span>
-              </Link>
+              {selectedUnlocked ? (
+                <Link
+                  href={`/app/modulos/${selectedModule.id}`}
+                  className="d-cta"
+                  style={{ ...ctaStyle, height: 38, padding: "0 16px", fontSize: 13.5, boxShadow: "none" }}
+                >
+                  {selectedDone ? "REVISAR MÓDULO" : "CONTINUAR MÓDULO"} <span>→</span>
+                </Link>
+              ) : null}
             </div>
             <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-              {selectedModule.missions.map((m, i) => {
-                // A primeira pendente é a que a pessoa deve abrir agora.
-                const isNext =
-                  !m.completed && selectedModule.missions.slice(0, i).every((prev) => prev.completed);
+              {(() => {
+                const states = missionStates(selectedModule.missions, selectedUnlocked);
 
-                return (
-                  <Link
-                    key={m.id}
-                    href={`/app/missoes/${m.id}`}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 12,
-                      padding: "11px 14px",
-                      background: c.card,
-                      border: `1px solid ${isNext ? c.brandLine2 : c.line}`,
-                      borderRadius: 8,
-                      textDecoration: "none"
-                    }}
-                  >
-                    <span
-                      className={isNext ? "d-pulse" : undefined}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        width: 26,
-                        height: 26,
-                        borderRadius: "50%",
-                        flexShrink: 0,
-                        fontSize: 13,
-                        fontWeight: 800,
-                        background: m.completed ? c.fill : c.brandSoft,
-                        color: m.completed ? c.onFill : c.brandInk
-                      }}
-                    >
-                      {m.completed ? "✓" : "▸"}
-                    </span>
-                    <span
-                      style={{
-                        flex: 1,
-                        fontSize: 14,
-                        fontWeight: isNext ? 700 : 600,
-                        color: m.completed ? c.muted : isNext ? c.brandInk : c.ink
-                      }}
-                    >
-                      {m.title}
-                    </span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: c.faint }}>{m.xpReward} XP</span>
-                  </Link>
-                );
-              })}
+                return selectedModule.missions.map((m, i) => {
+                  const state = states[i];
+                  const glyph = state === "done" ? "✓" : state === "current" ? "▸" : "";
+                  const row = (
+                    <>
+                      <span
+                        className={state === "current" ? "d-pulse" : undefined}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: 26,
+                          height: 26,
+                          borderRadius: "50%",
+                          flexShrink: 0,
+                          fontSize: 13,
+                          fontWeight: 800,
+                          background: state === "done" ? c.fill : state === "current" ? c.card : c.chip,
+                          border: `2px solid ${state === "locked" ? c.line : c.fill}`,
+                          color: state === "done" ? c.onFill : c.brandInk
+                        }}
+                      >
+                        {glyph}
+                      </span>
+                      <span
+                        style={{
+                          flex: 1,
+                          fontSize: 14,
+                          fontWeight: state === "current" ? 700 : 600,
+                          color: state === "locked" ? c.faint : state === "current" ? c.brandInk : c.ink2
+                        }}
+                      >
+                        {m.title}
+                      </span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: c.faint }}>+{m.xpReward} XP</span>
+                    </>
+                  );
+
+                  const rowStyle: React.CSSProperties = {
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "11px 14px",
+                    background: c.card,
+                    border: `1px solid ${state === "current" ? c.brandLine2 : c.line}`,
+                    borderRadius: 8,
+                    textDecoration: "none"
+                  };
+
+                  return state === "locked" ? (
+                    <div key={m.id} style={rowStyle}>
+                      {row}
+                    </div>
+                  ) : (
+                    <Link key={m.id} href={`/app/missoes/${m.id}`} style={rowStyle}>
+                      {row}
+                    </Link>
+                  );
+                });
+              })()}
             </div>
           </div>
         ) : null}
@@ -725,13 +887,23 @@ export function StudentDashboard(props: StudentDashboardProps) {
 
     return (
       <div ref={tracksAnim.ref}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
-          <SectionTitle>Trilhas em Andamento</SectionTitle>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 16 }}>
+          <SectionTitle>Módulos em Andamento</SectionTitle>
           <Link
             href="/app/trilhas"
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600, color: c.faint, textDecoration: "none" }}
+            className="d-seeall"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 14,
+              fontWeight: 600,
+              color: c.faint,
+              textDecoration: "none",
+              transition: "all .2s"
+            }}
           >
-            VER TODAS &gt;
+            VER MEUS MÓDULOS &gt;
           </Link>
         </div>
 
@@ -740,13 +912,13 @@ export function StudentDashboard(props: StudentDashboardProps) {
             Você ainda não começou nenhuma trilha.
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
             {visible.map((t) => {
               const shownPercent = Math.round(t.progressPercent * tracksAnim.value);
 
               return (
-                <div key={t.id} className="d-track" style={{ ...panel, display: "flex", flexDirection: "column", transition: "all .2s" }}>
-                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: c.ink }}>{t.title}</h3>
+                <div key={t.id} className="d-track" style={{ ...panel, padding: 22, display: "flex", flexDirection: "column", transition: "all .2s" }}>
+                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: c.ink }}>{t.title}</h3>
                   {size === "G" ? (
                     <p style={{ margin: "8px 0 16px", fontSize: 13.5, lineHeight: 1.55, color: c.muted, flex: 1 }}>
                       {t.description}
@@ -762,7 +934,11 @@ export function StudentDashboard(props: StudentDashboardProps) {
                   </div>
                   <ProgressBar percent={shownPercent} />
                   {size !== "P" ? (
-                    <Link href={`/app/trilhas/${t.slug}`} className="d-ghost" style={{ ...ghostStyle, marginTop: 14 }}>
+                    <Link
+                      href={`/app/trilhas/${t.slug}`}
+                      className="d-ghost"
+                      style={{ ...ghostStyle, marginTop: 16, height: 40, background: c.card, color: c.ink, border: `1px solid ${c.line}` }}
+                    >
                       Continuar estudando
                     </Link>
                   ) : null}
@@ -781,7 +957,7 @@ export function StudentDashboard(props: StudentDashboardProps) {
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
           <div style={{ maxWidth: "60ch" }}>
             <span style={chipStyle}>PARA PRATICAR</span>
-            <h2 style={{ margin: "10px 0 0", fontSize: 19, fontWeight: 700, color: c.ink }}>
+            <h2 style={{ margin: "10px 0 0", fontSize: 20, fontWeight: 700, color: c.ink }}>
               Próximo Simulado Sugerido
             </h2>
             {size !== "P" ? (
@@ -812,17 +988,17 @@ export function StudentDashboard(props: StudentDashboardProps) {
                 background: c.brandSoft,
                 border: `1px solid ${c.brandLine2}`,
                 borderRadius: 8,
-                padding: 16,
+                padding: 18,
                 display: "flex",
                 flexDirection: "column"
               }}
             >
               {recommendedSimulation ? (
                 <>
-                  <span style={{ ...chipStyle, background: c.card, color: c.brandInk }}>
+                  <span style={{ ...chipStyle, background: c.card, color: c.brandInk, padding: "3px 9px" }}>
                     {recommendedSimulation.typeLabel}
                   </span>
-                  <h3 style={{ margin: "12px 0 0", fontSize: 17, fontWeight: 700, color: c.brandInk }}>
+                  <h3 style={{ margin: "12px 0 0", fontSize: 18, fontWeight: 700, color: c.brandInk }}>
                     {recommendedSimulation.title}
                   </h3>
                   <p style={{ margin: "8px 0 16px", fontSize: 13.5, lineHeight: 1.55, color: c.brandInk, flex: 1 }}>
@@ -831,7 +1007,7 @@ export function StudentDashboard(props: StudentDashboardProps) {
                   <Link
                     href={`/app/simulados/${recommendedSimulation.id}`}
                     className="d-cta"
-                    style={{ ...ctaStyle, alignSelf: "flex-start" }}
+                    style={{ ...ctaStyle, height: 40, alignSelf: "flex-start" }}
                   >
                     Iniciar prática <span style={{ fontSize: 16 }}>→</span>
                   </Link>
@@ -842,13 +1018,13 @@ export function StudentDashboard(props: StudentDashboardProps) {
             </div>
 
             {size === "G" ? (
-              <div style={{ background: c.card, border: `1px solid ${c.line}`, borderRadius: 8, padding: 16 }}>
+              <div style={{ background: c.card, border: `1px solid ${c.line}`, borderRadius: 8, padding: 18 }}>
                 {lastAttempt ? (
                   <>
                     <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: c.muted }}>Último Resultado:</p>
-                    <p style={{ margin: "4px 0 0", fontSize: 40, fontWeight: 900, color: c.ink, lineHeight: 1 }}>
+                    <p style={{ margin: "4px 0 0", fontSize: 44, fontWeight: 900, color: c.ink, lineHeight: 1 }}>
                       {Math.round(lastAttempt.score * simAnim.value)}
-                      <span style={{ fontSize: 22 }}>%</span>
+                      <span style={{ fontSize: 24 }}>%</span>
                     </p>
                     <p style={{ margin: "4px 0 14px", fontSize: 13, color: c.muted }}>
                       {lastAttempt.title} ·{" "}
@@ -911,9 +1087,12 @@ export function StudentDashboard(props: StudentDashboardProps) {
 
     return (
       <div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
-          <SectionTitle>Revisões que Merecem sua Atenção:</SectionTitle>
-          <Link href="/app/revisoes" style={{ fontSize: 13, fontWeight: 600, color: c.brandInk, textDecoration: "none" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 16 }}>
+          <SectionTitle>
+            <ClockIcon />
+            Revisões que Merecem sua Atenção:
+          </SectionTitle>
+          <Link href="/app/revisoes" style={{ fontSize: 14, fontWeight: 600, color: c.brandInk, textDecoration: "none" }}>
             VER TODAS &gt;
           </Link>
         </div>
@@ -930,69 +1109,78 @@ export function StudentDashboard(props: StudentDashboardProps) {
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {visible.length > 0 ? (
-              visible.map((r) => (
-                <div
-                  key={r.id}
-                  className={r.overdue ? "d-rev d-rev-urgent" : "d-rev"}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 14,
-                    padding: "13px 15px",
-                    background: c.card,
-                    border: `1px solid ${r.overdue ? "#fcd9b6" : c.line}`,
-                    borderRadius: 10,
-                    boxShadow: "0 1px 2px hsl(var(--slate-950) / 0.03)",
-                    transition: "all .18s",
-                    flexWrap: "wrap"
-                  }}
-                >
-                  <span
+              visible.map((r) => {
+                // Vencida ou vencendo hoje: o cartão pulsa e ganha borda de
+                // marca, para se separar da fila do que ainda pode esperar.
+                const urgent = r.overdue || r.dueTone === "today" || r.dueTone === "overdue";
+                const tone = dueToneColors[r.dueTone];
+
+                return (
+                  <div
+                    key={r.id}
+                    className={urgent ? "d-rev d-rev-urgent" : "d-rev"}
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      justifyContent: "center",
-                      width: 38,
-                      height: 38,
+                      gap: 14,
+                      padding: "14px 18px",
+                      background: c.card,
+                      border: `1px solid ${urgent ? c.brandLine2 : c.line}`,
                       borderRadius: 8,
-                      background: c.brandSoft,
-                      color: c.brandInk,
-                      fontSize: 18,
-                      flexShrink: 0
+                      boxShadow: "0 1px 2px hsl(var(--slate-950) / 0.03)",
+                      transition: "all .18s",
+                      flexWrap: "wrap"
                     }}
                   >
-                    ↻
-                  </span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: c.ink }}>{r.title}</p>
-                    {size === "G" ? (
-                      <p style={{ margin: "2px 0 0", fontSize: 12.5, color: c.muted }}>{r.trackLabel}</p>
-                    ) : null}
+                    <span
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: 40,
+                        height: 40,
+                        borderRadius: 8,
+                        background: c.brandSoft,
+                        color: c.brandInk,
+                        fontSize: 18,
+                        flexShrink: 0
+                      }}
+                    >
+                      ↻
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ margin: 0, fontSize: 14.5, fontWeight: 700, color: c.ink }}>{r.title}</p>
+                      {size === "G" ? (
+                        <p style={{ margin: "2px 0 0", fontSize: 12.5, color: c.muted }}>{r.trackLabel}</p>
+                      ) : null}
+                    </div>
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        padding: "4px 11px",
+                        borderRadius: 999,
+                        background: tone.background,
+                        color: tone.color,
+                        flexShrink: 0
+                      }}
+                    >
+                      {r.dueText}
+                    </span>
+                    <Link href={`/app/missoes/${r.missionId}`} className="d-ghost" style={{ ...ghostStyle, height: 36, padding: "0 14px", fontSize: 13 }}>
+                      Revisar
+                    </Link>
                   </div>
-                  <span
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 700,
-                      padding: "4px 10px",
-                      borderRadius: 6,
-                      background: r.overdue ? "#fff7ed" : c.chip,
-                      color: r.overdue ? "#9a5b1d" : c.ink2,
-                      flexShrink: 0
-                    }}
-                  >
-                    {r.dueText}
-                  </span>
-                  <Link href={`/app/missoes/${r.missionId}`} className="d-ghost" style={{ ...ghostStyle, height: 34 }}>
-                    Revisar
-                  </Link>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div
                 style={{
                   background: c.card,
                   border: `1px dashed ${c.line2}`,
-                  borderRadius: 10,
+                  borderRadius: 8,
                   padding: "26px 20px",
                   textAlign: "center"
                 }}
@@ -1024,8 +1212,9 @@ export function StudentDashboard(props: StudentDashboardProps) {
         .dash .d-stat:hover { transform: translateY(-3px); box-shadow: 0 10px 24px hsl(var(--slate-950) / .07); border-color: ${c.brandMid}; }
         .dash .d-track:hover { transform: translateY(-3px); box-shadow: 0 12px 26px hsl(var(--slate-950) / .08); border-color: ${c.brandMid}; }
         .dash .d-badge:hover { border-color: ${c.brandMid}; background: ${c.brandTint}; transform: translateX(2px); }
-        .dash .d-rev:hover { border-color: ${c.brandMid}; transform: translateX(3px); }
-        .dash .d-ghost:hover { background: ${c.brandSoft}; border-color: ${c.fill}; }
+        .dash .d-rev:hover { border-color: ${c.brandMid}; transform: translateX(3px); box-shadow: 0 6px 18px hsl(var(--slate-950) / .05); }
+        .dash .d-ghost:hover { background: ${c.brandSoft}; border-color: ${c.fill}; color: ${c.brandInk}; }
+        .dash .d-seeall:hover { color: ${c.brandInk}; gap: 8px; }
         .dash .d-pulse { animation: d-pulse-ring 2.2s ease-out infinite; }
         .dash .d-rev-urgent { animation: d-rev-pulse 2.6s ease-in-out infinite; }
         @keyframes d-pulse-ring {
@@ -1047,6 +1236,10 @@ export function StudentDashboard(props: StudentDashboardProps) {
         freeLayout={freeLayout}
         startEditing={startEditing}
       />
+
+      <p style={{ margin: "20px 0 0", textAlign: "center", fontSize: 12.5, color: c.faint }}>
+        Conteúdo demonstrativo, fictício e não oficial.
+      </p>
     </div>
   );
 }
