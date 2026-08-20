@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useActionState, useState } from "react";
 
 import { loginAction, registerAction, type LoginActionState } from "@/server/actions/auth";
@@ -42,6 +41,7 @@ export function LoginForm() {
   const [mode, setMode] = useState<Mode>("login");
   const [showPassword, setShowPassword] = useState(false);
   const [password, setPassword] = useState("");
+  const [showRecoveryHint, setShowRecoveryHint] = useState(false);
 
   const [loginState, loginFormAction, isLoggingIn] = useActionState(loginAction, initialState);
   const [registerState, registerFormAction, isRegistering] = useActionState(
@@ -63,6 +63,7 @@ export function LoginForm() {
     setMode(next);
     setPassword("");
     setShowPassword(false);
+    setShowRecoveryHint(false);
   }
 
   return (
@@ -176,14 +177,23 @@ export function LoginForm() {
               Senha
             </label>
             {isSignup ? null : (
-              <Link
-                href="/#suporte"
+              <button
+                type="button"
+                onClick={() => setShowRecoveryHint((current) => !current)}
+                aria-expanded={showRecoveryHint}
                 className="border-b-[1.5px] border-violet-200 pb-px text-[12.5px] font-semibold text-slate-400 transition-colors hover:border-violet-800 hover:text-violet-800"
               >
                 Esqueci minha senha
-              </Link>
+              </button>
             )}
           </div>
+          {!isSignup && showRecoveryHint ? (
+            <p className="rounded-[9px] border border-violet-100 bg-violet-50 px-3.5 py-2.5 text-[12.5px] leading-5 text-violet-900">
+              Este ambiente é demonstrativo e ainda não tem recuperação de senha. Use uma das
+              contas de demonstração listadas abaixo ou peça a redefinição para quem administra
+              a instalação.
+            </p>
+          ) : null}
           <div className="relative">
             <span
               aria-hidden="true"

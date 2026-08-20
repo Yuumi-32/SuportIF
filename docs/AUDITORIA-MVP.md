@@ -53,8 +53,7 @@ Este documento resume o que esta implementado de forma real no MVP e o que ainda
 
 ## Paginas com dados reais
 
-- `/`
-- `/login`
+- `/` (tela de entrada)
 - `/app`
 - `/app/trilhas`
 - `/app/trilhas/[slug]`

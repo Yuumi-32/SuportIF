@@ -107,8 +107,7 @@ npm run prisma:seed
 
 ## Rotas principais
 
-- `/`
-- `/login`
+- `/` (tela de entrada: login e criação de conta)
 - `/app`
 - `/app/trilhas`
 - `/app/trilhas/[slug]`

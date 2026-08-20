@@ -71,7 +71,7 @@ export async function loginAction(
 }
 
 /**
- * Cadastro pela aba "Criar conta" do /login. Toda conta criada por aqui entra
+ * Cadastro pela aba "Criar conta" da tela de entrada. Toda conta criada por aqui entra
  * como STUDENT — tutor e admin continuam saindo do seed ou da área de admin.
  */
 export async function registerAction(
@@ -124,5 +124,5 @@ export async function registerAction(
 
 export async function logoutAction() {
   await destroySession();
-  redirect("/login");
+  redirect("/");
 }

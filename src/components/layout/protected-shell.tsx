@@ -6,6 +6,7 @@ import { UserMenu } from "@/components/layout/user-menu";
 import { RoamingPet } from "@/components/pet/roaming-pet";
 import { CalendarDrawer } from "@/components/workspace/calendar-drawer";
 import { StickyNotes } from "@/components/workspace/sticky-notes";
+import { getHomePathForRole } from "@/lib/auth/redirects";
 import { getPetOverview } from "@/server/queries/pet";
 import { getWorkspaceData } from "@/server/queries/workspace";
 
@@ -58,7 +59,10 @@ export async function ProtectedShell({ user, children }: ProtectedShellProps) {
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[hsl(var(--app-header)/0.95)] backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 lg:min-h-16 lg:flex-row lg:items-center lg:justify-between lg:py-0">
           <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
-            <Link href="/" className="shrink-0 text-xl font-black tracking-normal text-white">
+            <Link
+              href={getHomePathForRole(user.role)}
+              className="shrink-0 text-xl font-black tracking-normal text-white"
+            >
               SuportIF
             </Link>
             <nav
