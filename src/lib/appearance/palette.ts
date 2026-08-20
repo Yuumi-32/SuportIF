@@ -31,5 +31,11 @@ export const theme: Record<string, string> = {
   danger: "#b91c1c",
   dangerSoft: "#fee2e2",
   ok: "#15803d",
-  okSoft: "#dcfce7"
+  okSoft: "#dcfce7",
+  // Versões que acompanham o tema, para quando a cor semântica é tinta sobre o
+  // cartão em vez de texto sobre a pílula clara correspondente.
+  dangerInk: "hsl(var(--danger-ink))",
+  todayInk: "hsl(var(--today-ink))",
+  warnInk: "hsl(var(--warn-ink))",
+  okInk: "hsl(var(--ok-ink))"
 };

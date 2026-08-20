@@ -265,6 +265,12 @@ export function buildAppearanceCss(settings: AppearanceSettings) {
     `--foreground:${hslToCss(resolved.textHsl)}`,
     // Tinta da marca para quem usa `style` inline e não alcança as classes.
     `--brand-ink:${hslToCss(resolved.accentRamp[resolved.isDark ? 4 : 8])}`,
+    // Tinta semântica (atraso, alerta, acerto) pela mesma regra da marca: sobre
+    // cartão escuro o tom fechado perde contraste e dá lugar ao tom claro.
+    `--danger-ink:${resolved.isDark ? "0 90.6% 70.8%" : "0 73.7% 41.8%"}`,
+    `--today-ink:${resolved.isDark ? "27 96% 61%" : "17.5 88.4% 40.4%"}`,
+    `--warn-ink:${resolved.isDark ? "43.3 96.4% 56.3%" : "26 90.5% 37.1%"}`,
+    `--ok-ink:${resolved.isDark ? "141.9 69.2% 58%" : "142.4 71.8% 29.2%"}`,
     `--primary:${hslToCss(resolved.accentRamp[8])}`,
     `--ring:${hslToCss(resolved.accentRamp[8])}`,
     `--accent:${hslToCss(resolved.accentRamp[1])}`,

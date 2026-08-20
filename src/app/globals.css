@@ -57,6 +57,13 @@
   --ring: 263 69% 42%;
   --radius: 0.5rem;
 
+  /* Tinta semântica sobre cartão. Como `--brand-ink`, precisa clarear quando o
+     cartão é escuro — os tons fechados abaixo somem no tema escuro. */
+  --danger-ink: 0 73.7% 41.8%;
+  --today-ink: 17.5 88.4% 40.4%;
+  --warn-ink: 26 90.5% 37.1%;
+  --ok-ink: 142.4 71.8% 29.2%;
+
   /* Paleta da marca (roxo) usada nas telas com estilo inline. */
   --brand: #5b21b6;
   --brand-dark: #4c1d95;
