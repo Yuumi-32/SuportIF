@@ -183,9 +183,8 @@ export function TrackDetail({ enrolled, summary }: TrackDetailProps) {
         .track-detail .td-back { transition: color .15s; }
         .track-detail .td-back:hover { color: ${theme.brandInk}; }
         .track-detail .td-rec-btn:hover { background: ${theme.fillDark}; transform: translateY(-1px); }
-        .track-detail .td-mcard:hover { border-color: ${theme.brandLine2} !important; box-shadow: 0 4px 14px rgba(2,8,23,.05); }
+        .track-detail .td-mcard:hover { border-color: ${theme.brandMid} !important; box-shadow: 0 4px 14px rgba(2,8,23,.05); }
         .track-detail .td-cta:hover { background: ${theme.fillDark}; }
-        .track-detail .td-complete-cta:hover { border-color: ${theme.faint}; }
         @keyframes td-riseIn { from { transform: translateY(14px); } to { transform: none; } }
         @keyframes td-pulseRing { 0% { box-shadow: 0 0 0 0 rgba(91,33,182,.4); } 70% { box-shadow: 0 0 0 8px rgba(91,33,182,0); } 100% { box-shadow: 0 0 0 0 rgba(91,33,182,0); } }
         @media (max-width: 860px) { .track-detail .td-head-grid { grid-template-columns: 1fr !important; } }
@@ -206,7 +205,7 @@ export function TrackDetail({ enrolled, summary }: TrackDetailProps) {
           alignSelf: "flex-start",
         }}
       >
-        <span style={{ fontSize: 16 }}>←</span> Meus Módulos
+        &lt; MEUS MÓDULOS
       </Link>
 
       {/* TRACK HEADER */}
@@ -226,6 +225,7 @@ export function TrackDetail({ enrolled, summary }: TrackDetailProps) {
                 padding: "4px 11px",
                 fontSize: 12.5,
                 fontWeight: 700,
+                textTransform: "uppercase",
               }}
             >
               {summary.area}
@@ -241,9 +241,10 @@ export function TrackDetail({ enrolled, summary }: TrackDetailProps) {
                 padding: "4px 11px",
                 fontSize: 12.5,
                 fontWeight: 600,
+                textTransform: "uppercase",
               }}
             >
-              {summary.isDemo ? "Trilha demonstrativa" : "Trilha disponível"}
+              {summary.isDemo ? "Módulo demonstrativo" : "Módulo disponível"}
             </span>
           </div>
           <h1 style={{ margin: "14px 0 0", fontSize: 32, fontWeight: 900, lineHeight: 1.12, color: theme.ink }}>
@@ -258,7 +259,7 @@ export function TrackDetail({ enrolled, summary }: TrackDetailProps) {
         <div
           style={{
             background: theme.card,
-            border: `1px solid ${theme.brandLine2}`,
+            border: `1px solid ${theme.brandLine}`,
             borderRadius: 8,
             boxShadow: "0 6px 22px rgba(76,29,149,.05)",
             padding: 20,
@@ -269,7 +270,7 @@ export function TrackDetail({ enrolled, summary }: TrackDetailProps) {
           }}
         >
           <p style={{ margin: 0, alignSelf: "flex-start", fontSize: 12.5, fontWeight: 700, color: theme.muted }}>
-            Progresso da trilha
+            Progresso geral
           </p>
           <div style={{ position: "relative", width: 124, height: 124, margin: "10px 0 2px" }}>
             <svg width="124" height="124" viewBox="0 0 80 80">
@@ -695,10 +696,13 @@ export function TrackDetail({ enrolled, summary }: TrackDetailProps) {
                         ? "Este módulo abre quando você concluir o módulo anterior."
                         : "Conclua a missão anterior para liberar esta.";
 
-                      const cardBg =
-                        status === "completed" ? theme.brandTint : status === "available" ? theme.card : theme.card;
+                      const cardBg = status === "completed" ? theme.brandTint : theme.card;
                       const cardBd =
-                        status === "completed" ? theme.brandLine2 : status === "available" ? theme.brandLine2 : theme.line;
+                        status === "completed"
+                          ? theme.brandLine2
+                          : status === "available"
+                            ? theme.brandMid
+                            : theme.line;
 
                       return (
                         <div
