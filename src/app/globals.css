@@ -94,3 +94,123 @@ a {
   outline: 2px solid hsl(var(--ring));
   outline-offset: 2px;
 }
+
+/* ---------------------------------------------------------------------------
+   Animações da tela de login (/login).
+   As bolhas do painel roxo derivam devagar e os blocos do formulário sobem ao
+   entrar. Tudo é desligado quando o usuário pede menos movimento.
+--------------------------------------------------------------------------- */
+@keyframes login-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes login-drift-a {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(-38px, 46px) scale(1.07);
+  }
+  66% {
+    transform: translate(24px, 84px) scale(0.95);
+  }
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+}
+
+@keyframes login-drift-b {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(58px, -52px) scale(1.12);
+  }
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+}
+
+@keyframes login-drift-c {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  40% {
+    transform: translate(70px, 38px) scale(1.15);
+  }
+  75% {
+    transform: translate(-30px, 60px) scale(0.9);
+  }
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+}
+
+@keyframes login-drift-d {
+  0% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(-46px, -40px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+@keyframes login-shake-x {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(-5px);
+  }
+  40%,
+  80% {
+    transform: translateX(5px);
+  }
+}
+
+.login-rise {
+  animation: login-rise-in 0.55s ease both;
+}
+
+.login-drift-a {
+  animation: login-drift-a 26s ease-in-out infinite;
+}
+
+.login-drift-b {
+  animation: login-drift-b 21s ease-in-out infinite;
+}
+
+.login-drift-c {
+  animation: login-drift-c 30s ease-in-out infinite;
+}
+
+.login-drift-d {
+  animation: login-drift-d 17s ease-in-out infinite;
+}
+
+.login-shake {
+  animation: login-shake-x 0.4s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-rise,
+  .login-drift-a,
+  .login-drift-b,
+  .login-drift-c,
+  .login-drift-d,
+  .login-shake {
+    animation: none !important;
+  }
+}

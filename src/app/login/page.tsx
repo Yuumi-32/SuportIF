@@ -1,8 +1,6 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PublicHeader } from "@/components/layout/public-header";
 import { getHomePathForRole } from "@/lib/auth/redirects";
 import { getCurrentUser } from "@/lib/auth/session";
 import { LoginForm } from "./login-form";
@@ -17,44 +15,67 @@ export default async function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50">
-      <PublicHeader />
-      <section className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl gap-8 px-4 py-10 lg:grid-cols-[1fr_440px] lg:items-center">
-        <div className="hidden space-y-5 lg:block">
-          <Badge variant="secondary" className="bg-white text-violet-800">
-            Ambiente demonstrativo
-          </Badge>
-          <h1 className="max-w-xl text-5xl font-black leading-tight text-slate-950">
-            Entre para continuar sua jornada de estudo.
+    <main className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
+      {/* Painel da marca. Some no mobile para o formulário ficar com a tela toda. */}
+      <div className="relative hidden flex-col justify-between overflow-hidden bg-violet-800 px-14 pb-12 pt-14 text-white lg:flex">
+        <div
+          aria-hidden="true"
+          className="login-drift-a absolute -right-[120px] -top-[140px] h-[420px] w-[420px] rounded-full bg-white/[0.06]"
+        />
+        <div
+          aria-hidden="true"
+          className="login-drift-b absolute -bottom-[90px] -left-[70px] h-[260px] w-[260px] rounded-full bg-white/[0.05]"
+        />
+        <div
+          aria-hidden="true"
+          className="login-drift-c absolute -left-[46px] top-[34%] h-[150px] w-[150px] rounded-full bg-white/[0.05]"
+        />
+        <div
+          aria-hidden="true"
+          className="login-drift-d absolute bottom-[22%] right-[12%] h-[88px] w-[88px] rounded-full border-[1.5px] border-white/[0.16]"
+        />
+        <div
+          aria-hidden="true"
+          className="login-drift-c absolute right-[26%] top-[18%] h-11 w-11 rounded-full bg-white/[0.09]"
+        />
+
+        <Link
+          href="/"
+          className="relative w-fit text-[21px] font-black tracking-tight text-white transition-opacity hover:opacity-80"
+        >
+          SuportIF
+        </Link>
+
+        <div className="login-rise relative max-w-sm">
+          <p className="text-xs font-bold uppercase tracking-[0.09em] text-white/70">
+            Plataforma de estudos
+          </p>
+          <div className="mt-3 h-0.5 w-12 rounded-full bg-white/60" />
+          <h1 className="mt-5 text-[38px] font-extrabold leading-[1.15] tracking-tight text-white">
+            Seu caminho de estudos, organizado.
           </h1>
-          <p className="max-w-lg text-lg leading-8 text-slate-600">
-            Use uma conta demonstrativa para acessar a experiência como aluno, tutor ou admin.
+          <p className="mt-4 text-[15.5px] leading-relaxed text-white/80">
+            Trilhas guiadas, simulados e revisões inteligentes — tudo num só lugar, no seu
+            ritmo.
           </p>
         </div>
-        <Card className="w-full border-violet-100 bg-white shadow-xl shadow-violet-900/10">
-          <CardHeader>
-            <Badge variant="secondary" className="w-fit bg-violet-50 text-violet-800">
-              SuportIF
-            </Badge>
-            <CardTitle className="text-2xl">Entrar no ambiente</CardTitle>
-            <p className="text-sm leading-6 text-slate-600">
-              Use uma das contas demonstrativas abaixo para conhecer a plataforma.
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <LoginForm />
-            <div className="rounded-lg border border-violet-100 bg-violet-50 p-4 text-sm leading-6 text-violet-950">
-              <p className="font-semibold">Credenciais locais de demonstração</p>
-              <div className="mt-2 space-y-1 text-violet-900">
-                <p>admin@suportif.dev</p>
-                <p>professor@suportif.dev</p>
-                <p>aluno@suportif.dev</p>
-              </div>
-              <p className="mt-2 font-semibold">Senha: suportif123</p>
-            </div>
-          </CardContent>
-        </Card>
-      </section>
+
+        <p className="relative text-[12.5px] text-white/60">
+          Conteúdo demonstrativo, fictício e não oficial.
+        </p>
+      </div>
+
+      <div className="flex items-center justify-center bg-slate-50 px-6 py-12 sm:px-10">
+        <div className="login-rise w-full max-w-[392px]">
+          <Link
+            href="/"
+            className="mb-8 inline-block text-xl font-black tracking-tight text-violet-800 lg:hidden"
+          >
+            SuportIF
+          </Link>
+          <LoginForm />
+        </div>
+      </div>
     </main>
   );
 }

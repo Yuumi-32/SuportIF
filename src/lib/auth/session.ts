@@ -21,10 +21,25 @@ function getSessionDurationMs() {
   return days * 24 * 60 * 60 * 1000;
 }
 
-export async function createSession(userId: string) {
+/** Sem "manter conectado" a sessão dura um dia e morre ao fechar o navegador. */
+const SHORT_SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
+
+export type CreateSessionOptions = {
+  /**
+   * Marcado no login ("Manter conectado neste dispositivo"): grava o cookie com
+   * data de expiração. Sem ele o cookie vira de sessão e some quando o
+   * navegador fecha.
+   */
+  remember?: boolean;
+};
+
+export async function createSession(userId: string, options: CreateSessionOptions = {}) {
+  const remember = options.remember ?? true;
   const token = randomBytes(32).toString("hex");
   const tokenHash = hashToken(token);
-  const expiresAt = new Date(Date.now() + getSessionDurationMs());
+  const expiresAt = new Date(
+    Date.now() + (remember ? getSessionDurationMs() : SHORT_SESSION_DURATION_MS)
+  );
 
   await prisma.session.create({
     data: {
@@ -40,7 +55,7 @@ export async function createSession(userId: string) {
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    expires: expiresAt
+    ...(remember ? { expires: expiresAt } : {})
   });
 }
 
