@@ -248,7 +248,7 @@ export function StudentTracks({
             </h1>
             {size !== "P" ? (
               <p style={{ margin: "10px 0 0", maxWidth: "62ch", fontSize: 15.5, lineHeight: 1.6, color: theme.ink2 }}>
-                Continue o que já começou ou escolha uma nova trilha demonstrativa para estudar em etapas.
+                Continue o que já começou ou escolha um novo módulo demonstrativo para estudar em etapas.
               </p>
             ) : null}
             <div style={{ margin: "12px 0 0", height: 2, width: 48, background: theme.fill, borderRadius: 999 }} />
