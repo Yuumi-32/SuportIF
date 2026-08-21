@@ -39,7 +39,10 @@ O MVP não executa código enviado por usuário no backend. Exercícios de progr
 - Atualização de `MissionProgress`, XP, nível, badges e revisões.
 - Revisões pendentes com ação real para marcar como feita.
 - Simulados com envio real de respostas, resultado salvo, pontos fortes/fracos, revisões e XP com dedupe.
-- Painel tutor com turmas, alunos, progresso, revisões, simulados, dificuldades, sinais de engajamento e observações.
+- Painel do professor com números da turma, alunos que precisam de atenção, lista de alunos, módulos e resultados por simulado, com filtro de turma e de período.
+- Marcador de acompanhamento do professor sobre o aluno, salvo em `StudentFollow`.
+- Criação e publicação de módulo pelo professor: o módulo nasce rascunho e entra na trilha do aluno ao ser publicado.
+- Detalhe de turma e de aluno com progresso, revisões, simulados, dificuldades, sinais de engajamento e observações.
 - Admin básico com CRUD real para trilhas, módulos, missões, exercícios/alternativas, simulados e badges.
 - Painel do admin com saúde da plataforma, contas, permissões por papel, fila de aprovação de conteúdo, turmas, auditoria e configurações da instituição.
 - Suspensão e reativação de conta, que bloqueia o login e derruba as sessões abertas.
@@ -147,9 +150,10 @@ Aluno:
 Professor:
 
 1. Entre como `professor@suportif.dev`.
-2. Abra `/tutor`.
-3. Abra turmas e detalhe de aluno.
-4. Confira progresso, revisões, simulados, sinais e observações.
+2. Abra `/tutor` e percorra as quatro abas do painel.
+3. Marque um aluno como acompanhado e confira o aviso no topo.
+4. Publique ou despublique um módulo e veja a trilha do aluno mudar.
+5. Abra turmas e detalhe de aluno e confira progresso, revisões, simulados, sinais e observações.
 
 Admin:
 

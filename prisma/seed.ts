@@ -493,6 +493,9 @@ async function main() {
           slug: moduleSlug,
           description: `Uma etapa curta para estudar ${moduleTitle} com explicação, exemplo e prática demonstrativa.`,
           order: moduleIndex + 1,
+          // A carga inicial já entra publicada: sem isto a base nasce com todas
+          // as trilhas vazias para o aluno, porque só módulo aprovado aparece.
+          approvalStatus: "APPROVED",
           isDemo: true
         }
       });

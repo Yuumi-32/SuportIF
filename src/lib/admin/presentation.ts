@@ -12,39 +12,6 @@ export function formatTeacherName(name: string) {
   return /^prof\.?\s/i.test(name) ? name : `Prof. ${name}`;
 }
 
-/** Meia-noite local da data — a régua usada para contar dias no painel. */
-export function startOfDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
-/**
- * Distância em linguagem de gente. Passado o mês, volta para a data cheia:
- * "há 63 dias" não diz nada a quem está lendo uma auditoria.
- */
-export function formatRelativeDay(date: Date, now = new Date()) {
-  const minutes = Math.round((now.getTime() - date.getTime()) / 60_000);
-
-  if (minutes < 60) {
-    return "Agora";
-  }
-
-  const days = Math.round((startOfDay(now).getTime() - startOfDay(date).getTime()) / 86_400_000);
-
-  if (days <= 0) {
-    return "Hoje";
-  }
-
-  if (days === 1) {
-    return "Ontem";
-  }
-
-  if (days <= 30) {
-    return `há ${days} dias`;
-  }
-
-  return date.toLocaleDateString("pt-BR");
-}
-
 /// Frases da auditoria. A chave é o `action` gravado no ActivityLog e o valor
 /// completa "<Autor> ...", por isso todas começam por verbo.
 const actionPhrases: Record<string, string> = {
@@ -67,6 +34,12 @@ const actionPhrases: Record<string, string> = {
   ADMIN_CLASS_CREATED: "criou uma turma",
   ADMIN_SETTINGS_UPDATED: "alterou as configurações da instituição",
   TEACHER_NOTE_CREATED: "registrou uma observação sobre um aluno",
+  TEACHER_STUDENT_FOLLOWED: "passou a acompanhar um aluno",
+  TEACHER_STUDENT_UNFOLLOWED: "deixou de acompanhar um aluno",
+  TEACHER_MODULE_CREATED: "criou um módulo",
+  TEACHER_MODULE_UPDATED: "editou um módulo",
+  TEACHER_MODULE_PUBLISHED: "publicou um módulo para as turmas",
+  TEACHER_MODULE_UNPUBLISHED: "tirou um módulo do ar",
   TRACK_STARTED: "começou uma trilha",
   MISSION_OPENED: "abriu uma missão",
   EXERCISE_CORRECT: "acertou um exercício",
@@ -171,15 +144,21 @@ export const rolePermissions: Array<{
     roles: { STUDENT: false, TEACHER: true, ADMIN: false }
   },
   {
+    id: "modules",
+    label: "Criar e publicar módulos",
+    description: "Publicação direta pelo painel do professor, sem passar pela fila de aprovação",
+    roles: { STUDENT: false, TEACHER: true, ADMIN: true }
+  },
+  {
     id: "content",
     label: "Criar e editar conteúdo",
-    description: "Trilhas, módulos, missões, exercícios e simulados",
+    description: "Trilhas, missões, exercícios, simulados e badges",
     roles: { STUDENT: false, TEACHER: false, ADMIN: true }
   },
   {
     id: "approve",
-    label: "Aprovar conteúdo",
-    description: "Publicar um módulo para as turmas",
+    label: "Revisar conteúdo de terceiros",
+    description: "Aprovar ou rejeitar o módulo de qualquer professor",
     roles: { STUDENT: false, TEACHER: false, ADMIN: true }
   },
   {

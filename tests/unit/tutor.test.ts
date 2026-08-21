@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   aggregateDifficultyItems,
+  buildAttentionReason,
   calculateAverageProgress,
   getHighestEngagementSeverity,
   isReviewOverdue
 } from "@/lib/tutor/analytics";
-import { teacherNoteSchema } from "@/lib/validations/teacher";
+import { teacherModuleSchema, teacherNoteSchema } from "@/lib/validations/teacher";
 
 describe("tutor analytics", () => {
   it("calculates average class progress", () => {
@@ -75,5 +76,62 @@ describe("tutor analytics", () => {
 
   it("validates empty teacher note", () => {
     expect(teacherNoteSchema.safeParse({ studentId: "student-1", note: "" }).success).toBe(false);
+  });
+
+  it("prefers the engagement signal message as the attention reason", () => {
+    expect(
+      buildAttentionReason({
+        signalMessage: "Parou no meio do módulo de redes.",
+        inactiveDays: 21,
+        overdueReviews: 4,
+        progressPercent: 10,
+        simulationAverage: 30
+      })
+    ).toBe("Parou no meio do módulo de redes.");
+  });
+
+  it("builds the attention reason from the numbers when there is no signal", () => {
+    expect(
+      buildAttentionReason({
+        inactiveDays: 12,
+        overdueReviews: 3,
+        progressPercent: 24,
+        simulationAverage: 62
+      })
+    ).toBe("Está há 12 dias sem acessar e tem 3 revisões atrasadas.");
+
+    expect(
+      buildAttentionReason({
+        inactiveDays: 1,
+        overdueReviews: 0,
+        progressPercent: 22,
+        simulationAverage: null
+      })
+    ).toBe("Não entregou nenhum simulado e concluiu 22% dos módulos.");
+  });
+
+  it("keeps a reason even when only the signal explains the risk", () => {
+    expect(
+      buildAttentionReason({
+        inactiveDays: 2,
+        overdueReviews: 0,
+        progressPercent: 90,
+        simulationAverage: 88
+      })
+    ).toBe("Está em dia nos números, mas segue marcado por um sinal de engajamento.");
+  });
+
+  it("validates the module the teacher creates from the panel", () => {
+    expect(
+      teacherModuleSchema.safeParse({
+        trackId: "track-1",
+        title: "Redes na prática",
+        description: "Uma etapa curta sobre endereços e serviços."
+      }).success
+    ).toBe(true);
+
+    expect(
+      teacherModuleSchema.safeParse({ trackId: "", title: "Redes", description: "curta" }).success
+    ).toBe(false);
   });
 });

@@ -1,6 +1,7 @@
 import type { ClassLevel, ModuleApprovalStatus, UserRole } from "@prisma/client";
 
-import { formatAdminAction, formatRelativeDay, formatTeacherName, startOfDay } from "@/lib/admin/presentation";
+import { formatAdminAction, formatTeacherName } from "@/lib/admin/presentation";
+import { formatRelativeDay, startOfDay } from "@/lib/format/relative-date";
 import { prisma } from "@/lib/prisma/client";
 
 /// A configuração da instituição é uma linha só. O id é fixo para o painel

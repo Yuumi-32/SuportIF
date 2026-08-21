@@ -123,6 +123,8 @@ model User {
   engagementSignals    EngagementSignal[]
   teacherNotesAuthored TeacherNote[]       @relation("TeacherNotesAuthored")
   teacherNotesReceived TeacherNote[]       @relation("TeacherNotesReceived")
+  studentsFollowed     StudentFollow[]     @relation("StudentFollowsMade")
+  followedByTeachers   StudentFollow[]     @relation("StudentFollowsReceived")
   activityLogs         ActivityLog[]
   calendarEvents       CalendarEvent[]
   studyNotes           StudyNote[]
@@ -537,6 +539,21 @@ model TeacherNote {
   student   User     @relation("TeacherNotesReceived", fields: [studentId], references: [id], onDelete: Cascade)
 
   @@index([teacherId])
+  @@index([studentId])
+}
+
+/// Marcador pessoal do professor: "estou de olho neste aluno". Fica ao lado da
+/// observação escrita (TeacherNote) e não muda nada para o aluno — dois
+/// professores da mesma turma marcam de forma independente.
+model StudentFollow {
+  id        String   @id @default(cuid())
+  teacherId String
+  studentId String
+  createdAt DateTime @default(now())
+  teacher   User     @relation("StudentFollowsMade", fields: [teacherId], references: [id], onDelete: Cascade)
+  student   User     @relation("StudentFollowsReceived", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, studentId])
   @@index([studentId])
 }
 
