@@ -7,6 +7,7 @@ import { createSession, destroySession } from "@/lib/auth/session";
 import { getHomePathForRole } from "@/lib/auth/redirects";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { prisma } from "@/lib/prisma/client";
+import { getInstitutionSettings } from "@/server/queries/admin";
 import { loginSchema, registerSchema } from "@/lib/validations/auth";
 
 export type LoginActionState = {
@@ -57,6 +58,14 @@ export async function loginAction(
     };
   }
 
+  // A checagem vem depois da senha de propósito: antes dela, a mensagem
+  // entregaria a quem chuta e-mails que aquela conta existe.
+  if (user.suspendedAt) {
+    return {
+      error: "Esta conta está suspensa. Procure a administração."
+    };
+  }
+
   await prisma.user.update({
     where: {
       id: user.id
@@ -87,6 +96,24 @@ export async function registerAction(
   if (!parsed.success) {
     return {
       error: parsed.error.issues[0]?.message ?? "Dados inválidos."
+    };
+  }
+
+  const institution = await getInstitutionSettings();
+
+  if (!institution.openRegistration) {
+    return {
+      error: "A criação de contas está desativada. Procure a administração."
+    };
+  }
+
+  if (
+    institution.requireInstitutionalEmail &&
+    institution.emailDomain &&
+    !parsed.data.email.toLowerCase().endsWith(institution.emailDomain)
+  ) {
+    return {
+      error: `Use um e-mail institucional terminado em ${institution.emailDomain}.`
     };
   }
 

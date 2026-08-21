@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/auth/login-form";
 import { getHomePathForRole } from "@/lib/auth/redirects";
 import { getCurrentUser } from "@/lib/auth/session";
+import { getInstitutionSettings } from "@/server/queries/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,8 @@ export default async function HomePage() {
   if (user) {
     redirect(getHomePathForRole(user.role));
   }
+
+  const institution = await getInstitutionSettings();
 
   return (
     <main className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
@@ -42,9 +45,11 @@ export default async function HomePage() {
           className="login-drift-c absolute right-[26%] top-[18%] h-11 w-11 rounded-full bg-white/[0.09]"
         />
 
-        <span className="relative w-fit text-[21px] font-black tracking-tight text-white">
-          SuportIF
-        </span>
+        <div className="relative w-fit">
+          <span className="text-[21px] font-black tracking-tight text-white">SuportIF</span>
+          {/* Nome vindo da configuração da instituição, no painel do admin. */}
+          <p className="mt-1 text-[12.5px] text-white/60">{institution.name}</p>
+        </div>
 
         <div className="login-rise relative max-w-sm">
           <p className="text-xs font-bold uppercase tracking-[0.09em] text-white/70">

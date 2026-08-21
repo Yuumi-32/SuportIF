@@ -6,13 +6,17 @@ import { redirect } from "next/navigation";
 
 import { requireRole } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma/client";
+import { INSTITUTION_ID } from "@/server/queries/admin";
+import { formatTeacherName, type AdminActionResult } from "@/lib/admin/presentation";
 import {
   adminBadgeSchema,
+  adminClassSchema,
   adminExerciseSchema,
   adminMissionSchema,
   adminModuleSchema,
   adminSimulationSchema,
   adminTrackSchema,
+  institutionSettingsSchema,
   parseExerciseOptionsFromForm
 } from "@/lib/validations/admin";
 
@@ -116,6 +120,13 @@ export async function saveModuleAction(formData: FormData) {
     redirectWithError("/admin/modulos", "duplicate-slug");
   }
 
+  // Aprovar pelo formulário conta como revisão: é a mesma decisão que a aba
+  // Conteúdo do painel grava, só que tomada aqui.
+  const review =
+    parsed.data.approvalStatus === "PENDING"
+      ? { reviewedAt: null, reviewedById: null }
+      : { reviewedAt: new Date(), reviewedById: adminId };
+
   const contentModule = parsed.data.id
     ? await prisma.module.update({
         where: { id: parsed.data.id },
@@ -125,7 +136,9 @@ export async function saveModuleAction(formData: FormData) {
           slug: parsed.data.slug,
           description: parsed.data.description,
           order: parsed.data.order,
-          isDemo: parsed.data.isDemo
+          approvalStatus: parsed.data.approvalStatus,
+          isDemo: parsed.data.isDemo,
+          ...review
         }
       })
     : await prisma.module.create({
@@ -135,7 +148,10 @@ export async function saveModuleAction(formData: FormData) {
           slug: parsed.data.slug,
           description: parsed.data.description,
           order: parsed.data.order,
-          isDemo: parsed.data.isDemo
+          approvalStatus: parsed.data.approvalStatus,
+          isDemo: parsed.data.isDemo,
+          createdById: adminId,
+          ...review
         }
       });
 
@@ -146,6 +162,7 @@ export async function saveModuleAction(formData: FormData) {
     contentModule.id
   );
   revalidatePath("/admin/modulos");
+  revalidatePath("/admin");
   revalidatePath("/app/trilhas");
   redirect("/admin/modulos?saved=module");
 }
@@ -458,4 +475,164 @@ export async function saveBadgeAction(formData: FormData) {
 
   revalidatePath("/admin/badges");
   redirect("/admin/badges?saved=badge");
+}
+
+/**
+ * Suspende ou reativa uma conta.
+ *
+ * Suspender também apaga as sessões abertas: sem isso quem já estava logado
+ * continuaria navegando até o cookie vencer.
+ */
+export async function setUserSuspensionAction(userId: string, suspended: boolean): Promise<AdminActionResult> {
+  const admin = await requireRole(["ADMIN"]);
+
+  if (userId === admin.id) {
+    return { ok: false, message: "Você não pode suspender a própria conta." };
+  }
+
+  const target = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, name: true } });
+
+  if (!target) {
+    return { ok: false, message: "Conta não encontrada." };
+  }
+
+  await prisma.user.update({
+    where: { id: target.id },
+    data: { suspendedAt: suspended ? new Date() : null }
+  });
+
+  if (suspended) {
+    await prisma.session.deleteMany({ where: { userId: target.id } });
+  }
+
+  await writeAdminLog(admin.id, suspended ? "ADMIN_USER_SUSPENDED" : "ADMIN_USER_REACTIVATED", "USER", target.id);
+  revalidatePath("/admin");
+
+  return {
+    ok: true,
+    message: suspended ? `Conta de ${target.name} foi suspensa.` : `Conta de ${target.name} foi reativada.`
+  };
+}
+
+/**
+ * Publica ou devolve um módulo. Aprovado é o único estado que o aluno enxerga,
+ * então esta é a chave que liga o conteúdo para as turmas.
+ */
+export async function setModuleApprovalAction(
+  moduleId: string,
+  status: "APPROVED" | "REJECTED"
+): Promise<AdminActionResult> {
+  const admin = await requireRole(["ADMIN"]);
+  const target = await prisma.module.findUnique({ where: { id: moduleId }, select: { id: true, title: true } });
+
+  if (!target) {
+    return { ok: false, message: "Módulo não encontrado." };
+  }
+
+  await prisma.module.update({
+    where: { id: target.id },
+    data: { approvalStatus: status, reviewedAt: new Date(), reviewedById: admin.id }
+  });
+
+  await writeAdminLog(
+    admin.id,
+    status === "APPROVED" ? "ADMIN_MODULE_APPROVED" : "ADMIN_MODULE_REJECTED",
+    "MODULE",
+    target.id
+  );
+  revalidatePath("/admin");
+  revalidatePath("/admin/modulos");
+  revalidatePath("/app/trilhas");
+
+  return {
+    ok: true,
+    message:
+      status === "APPROVED"
+        ? `"${target.title}" foi aprovado e publicado.`
+        : `"${target.title}" foi rejeitado e saiu do ar.`
+  };
+}
+
+export async function createClassGroupAction(input: {
+  name: string;
+  course: string;
+  term: string;
+  level: string;
+  teacherId: string;
+}): Promise<AdminActionResult> {
+  const admin = await requireRole(["ADMIN"]);
+  const parsed = adminClassSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  }
+
+  const teacher = await prisma.user.findFirst({
+    where: { id: parsed.data.teacherId, role: "TEACHER" },
+    select: { id: true, name: true }
+  });
+
+  if (!teacher) {
+    return { ok: false, message: "Escolha um professor válido." };
+  }
+
+  const classGroup = await prisma.classGroup.create({
+    data: {
+      name: parsed.data.name,
+      // A descrição é o que o painel do tutor mostra; montamos a partir do que
+      // o admin preencheu para a turma nunca nascer sem contexto.
+      description: `${parsed.data.course} · ${parsed.data.term}`,
+      course: parsed.data.course,
+      term: parsed.data.term,
+      level: parsed.data.level,
+      isDemo: false,
+      memberships: {
+        create: [{ userId: teacher.id, roleInClass: "TEACHER" }]
+      }
+    }
+  });
+
+  await writeAdminLog(admin.id, "ADMIN_CLASS_CREATED", "CLASS_GROUP", classGroup.id);
+  revalidatePath("/admin");
+  revalidatePath("/tutor/turmas");
+
+  return { ok: true, message: `Turma ${classGroup.name} criada e vinculada ao ${formatTeacherName(teacher.name)}.` };
+}
+
+/**
+ * Salva a configuração da instituição — a linha única do painel.
+ *
+ * Os três campos valem de verdade: o nome aparece na tela de entrada, a cor
+ * vira o tema padrão de quem ainda não personalizou e o domínio é cobrado no
+ * cadastro quando a exigência está ligada.
+ */
+export async function saveInstitutionSettingsAction(input: {
+  name: string;
+  emailDomain: string;
+  primaryColor: string;
+  openRegistration: boolean;
+  requireInstitutionalEmail: boolean;
+}): Promise<AdminActionResult> {
+  const admin = await requireRole(["ADMIN"]);
+  const parsed = institutionSettingsSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  }
+
+  if (parsed.data.requireInstitutionalEmail && !parsed.data.emailDomain) {
+    return { ok: false, message: "Informe o domínio para poder exigi-lo no cadastro." };
+  }
+
+  await prisma.institutionSettings.upsert({
+    where: { id: INSTITUTION_ID },
+    update: parsed.data,
+    create: { id: INSTITUTION_ID, ...parsed.data }
+  });
+
+  await writeAdminLog(admin.id, "ADMIN_SETTINGS_UPDATED", "SETTINGS", INSTITUTION_ID);
+  revalidatePath("/admin");
+  revalidatePath("/", "layout");
+
+  return { ok: true, message: "Configurações da instituição salvas." };
 }

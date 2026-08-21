@@ -129,6 +129,11 @@ function buildTrackSummary(track: TrackSource) {
 
 const trackInclude = (userId: string) => ({
   modules: {
+    // Pendente e rejeitado ficam fora do app: publicar é o que a aprovação do
+    // painel do admin faz.
+    where: {
+      approvalStatus: "APPROVED" as const
+    },
     orderBy: {
       order: "asc" as const
     },
@@ -379,9 +384,10 @@ export async function getTrackMap(userId: string, slug: string) {
 }
 
 export async function getModuleDetail(userId: string, moduleId: string) {
-  const trackModule = await prisma.module.findUnique({
+  const trackModule = await prisma.module.findFirst({
     where: {
-      id: moduleId
+      id: moduleId,
+      approvalStatus: "APPROVED"
     },
     include: {
       track: true,
@@ -525,9 +531,12 @@ export async function recordMissionStudy(userId: string, missionId: string) {
 }
 
 export async function getMissionDetail(userId: string, missionId: string) {
-  const mission = await prisma.mission.findUnique({
+  const mission = await prisma.mission.findFirst({
     where: {
-      id: missionId
+      id: missionId,
+      module: {
+        approvalStatus: "APPROVED"
+      }
     },
     include: {
       module: {

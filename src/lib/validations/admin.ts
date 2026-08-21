@@ -1,10 +1,14 @@
 import {
+  ClassLevel,
   ExerciseType,
   MissionDifficulty,
+  ModuleApprovalStatus,
   SimulationType,
   TrackLevel
 } from "@prisma/client";
 import { z } from "zod";
+
+import { appearancePresetIds } from "@/lib/appearance/settings";
 
 const optionalId = z.preprocess(
   (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
@@ -46,7 +50,31 @@ export const adminModuleSchema = z.object({
   slug,
   description: requiredText("Descrição", 8),
   order: z.coerce.number().int().min(1, "Ordem deve ser maior que zero."),
+  approvalStatus: z.nativeEnum(ModuleApprovalStatus).catch("PENDING"),
   isDemo: checkbox
+});
+
+export const adminClassSchema = z.object({
+  name: requiredText("Nome da turma"),
+  course: requiredText("Curso", 3),
+  term: requiredText("Período", 4),
+  level: z.nativeEnum(ClassLevel),
+  teacherId: z.string().min(1, "Escolha o professor responsável.")
+});
+
+/// Domínio vazio significa "sem restrição"; com valor, tem que parecer domínio.
+const emailDomain = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .refine((value) => value === "" || /^@[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(value), "Use um domínio como @ifb.edu.br.");
+
+export const institutionSettingsSchema = z.object({
+  name: requiredText("Nome da instituição", 3),
+  emailDomain,
+  primaryColor: z.enum(appearancePresetIds),
+  openRegistration: z.boolean(),
+  requireInstitutionalEmail: z.boolean()
 });
 
 export const adminMissionSchema = z.object({

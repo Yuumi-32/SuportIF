@@ -53,6 +53,11 @@ async function getStudentTrackSummaries(userId: string) {
       track: {
         include: {
           modules: {
+            // Mesmo recorte do app do aluno: módulo não publicado não conta no
+            // progresso que o tutor vê.
+            where: {
+              approvalStatus: "APPROVED"
+            },
             orderBy: {
               order: "asc"
             },

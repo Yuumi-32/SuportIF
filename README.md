@@ -41,6 +41,11 @@ O MVP não executa código enviado por usuário no backend. Exercícios de progr
 - Simulados com envio real de respostas, resultado salvo, pontos fortes/fracos, revisões e XP com dedupe.
 - Painel tutor com turmas, alunos, progresso, revisões, simulados, dificuldades, sinais de engajamento e observações.
 - Admin básico com CRUD real para trilhas, módulos, missões, exercícios/alternativas, simulados e badges.
+- Painel do admin com saúde da plataforma, contas, permissões por papel, fila de aprovação de conteúdo, turmas, auditoria e configurações da instituição.
+- Suspensão e reativação de conta, que bloqueia o login e derruba as sessões abertas.
+- Aprovação de módulo: só o módulo aprovado aparece nas trilhas dos alunos.
+- Criação de turma com curso, período, nível e professor responsável.
+- Configuração da instituição: nome exibido na entrada, cor padrão da plataforma, domínio de e-mail e cadastro aberto.
 - Seed demonstrativo com usuários, turma, trilhas, módulos, missões, exercícios, badges, progresso, revisões, simulados e sinais de engajamento.
 
 ## Fora do MVP
@@ -149,10 +154,13 @@ Professor:
 Admin:
 
 1. Entre como `admin@suportif.dev`.
-2. Abra `/admin`.
-3. Abra as áreas de CRUD.
-4. Crie ou edite conteúdo demonstrativo.
-5. Confirme que professor e aluno não acessam `/admin`.
+2. Abra `/admin` e percorra as abas do painel.
+3. Em Conteúdo, aprove ou rejeite um módulo e confira o efeito nas trilhas do aluno.
+4. Em Usuários, suspenda e reative uma conta demonstrativa.
+5. Em Turmas, crie uma turma e vincule um professor.
+6. Em Configurações, troque nome e cor da instituição e veja a tela de entrada.
+7. Abra as áreas de CRUD e crie ou edite conteúdo demonstrativo.
+8. Confirme que professor e aluno não acessam `/admin`.
 
 ## Estrutura resumida
 

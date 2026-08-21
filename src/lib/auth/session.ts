@@ -125,6 +125,18 @@ export async function getCurrentUser() {
     return null;
   }
 
+  // Rede de segurança: suspender já derruba as sessões, mas se alguma escapar
+  // (outra aba, outro processo) ela morre aqui na primeira navegação.
+  if (session.user.suspendedAt) {
+    await prisma.session.deleteMany({
+      where: {
+        userId: session.user.id
+      }
+    });
+
+    return null;
+  }
+
   return session.user;
 }
 

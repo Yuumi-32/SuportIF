@@ -19,6 +19,19 @@ enum RoleInClass {
   ASSISTANT
 }
 
+/// Nível do curso da turma. Institutos Federais atendem os dois de uma vez.
+enum ClassLevel {
+  TECHNICAL
+  HIGHER
+}
+
+/// Situação editorial do módulo. Só o aprovado aparece para os alunos.
+enum ModuleApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum TrackLevel {
   INTRODUCTORY
   BASIC
@@ -85,14 +98,17 @@ enum EngagementSignalType {
 }
 
 model User {
-  id                   String             @id @default(cuid())
+  id                   String              @id @default(cuid())
   name                 String
-  email                String             @unique
+  email                String              @unique
   passwordHash         String
   role                 UserRole
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
   lastLoginAt          DateTime?
+  /// Preenchido quando o admin suspende a conta. Bloqueia o login e derruba as
+  /// sessões abertas; voltar a null reativa.
+  suspendedAt          DateTime?
   profile              Profile?
   sessions             Session[]
   classMemberships     ClassMembership[]
@@ -105,12 +121,14 @@ model User {
   xpTransactions       XPTransaction[]
   badges               UserBadge[]
   engagementSignals    EngagementSignal[]
-  teacherNotesAuthored TeacherNote[]      @relation("TeacherNotesAuthored")
-  teacherNotesReceived TeacherNote[]      @relation("TeacherNotesReceived")
+  teacherNotesAuthored TeacherNote[]       @relation("TeacherNotesAuthored")
+  teacherNotesReceived TeacherNote[]       @relation("TeacherNotesReceived")
   activityLogs         ActivityLog[]
   calendarEvents       CalendarEvent[]
   studyNotes           StudyNote[]
   pet                  Pet?
+  modulesCreated       Module[]            @relation("ModuleAuthor")
+  modulesReviewed      Module[]            @relation("ModuleReviewer")
 }
 
 model Session {
@@ -126,25 +144,28 @@ model Session {
 }
 
 model Profile {
-  id                       String   @id @default(cuid())
-  userId                   String   @unique
+  id                       String  @id @default(cuid())
+  userId                   String  @unique
   avatarUrl                String?
   bio                      String?
-  totalXp                  Int      @default(0)
-  level                    Int      @default(1)
-  streak                   Int      @default(0)
-  preferredExplanationMode String   @default("DETAILED")
+  totalXp                  Int     @default(0)
+  level                    Int     @default(1)
+  streak                   Int     @default(0)
+  preferredExplanationMode String  @default("DETAILED")
   /// Personalização visual do usuário (nível + tokens). Formato em src/lib/appearance/settings.ts.
   appearance               Json?
-  user                     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model ClassGroup {
-  id          String              @id @default(cuid())
+  id          String             @id @default(cuid())
   name        String
   description String
-  isDemo      Boolean             @default(true)
-  createdAt   DateTime            @default(now())
+  course      String             @default("")
+  term        String             @default("")
+  level       ClassLevel         @default(TECHNICAL)
+  isDemo      Boolean            @default(true)
+  createdAt   DateTime           @default(now())
   memberships ClassMembership[]
   signals     EngagementSignal[]
 }
@@ -180,49 +201,59 @@ model Track {
 }
 
 model Module {
-  id          String       @id @default(cuid())
-  trackId     String
-  title       String
-  slug        String
-  description String
-  order       Int
-  isDemo      Boolean      @default(true)
-  track       Track        @relation(fields: [trackId], references: [id], onDelete: Cascade)
-  missions    Mission[]
-  simulations Simulation[]
+  id             String               @id @default(cuid())
+  trackId        String
+  title          String
+  slug           String
+  description    String
+  order          Int
+  isDemo         Boolean              @default(true)
+  /// Módulo novo nasce pendente: só entra para o aluno depois que o admin
+  /// aprova na aba Conteúdo do painel.
+  approvalStatus ModuleApprovalStatus @default(PENDING)
+  createdAt      DateTime             @default(now())
+  createdById    String?
+  reviewedAt     DateTime?
+  reviewedById   String?
+  track          Track                @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  createdBy      User?                @relation("ModuleAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  reviewedBy     User?                @relation("ModuleReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  missions       Mission[]
+  simulations    Simulation[]
 
   @@unique([trackId, slug])
   @@index([trackId])
+  @@index([approvalStatus])
 }
 
 model Mission {
-  id                    String                @id @default(cuid())
-  moduleId              String
-  title                 String
-  slug                  String
-  shortDescription      String
-  objective             String
-  quickExplanation      String
-  detailedExplanation   String
-  analogy               String
-  practicalExample      String
-  guidedExercisePrompt  String
-  challengePrompt       String
-  summary               String
-  attentionPoints       String[]
-  difficulty            MissionDifficulty
-  xpReward              Int
-  estimatedMinutes      Int
-  order                 Int
-  isDemo                Boolean               @default(true)
-  module                Module                @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  exercises             Exercise[]
-  progress              MissionProgress[]
-  reviews               ReviewSchedule[]
-  skills                MissionSkill[]
-  tags                  MissionTag[]
-  prerequisites         MissionPrerequisite[] @relation("MissionPrerequisites")
-  requiredBy            MissionPrerequisite[] @relation("MissionRequiredBy")
+  id                   String                @id @default(cuid())
+  moduleId             String
+  title                String
+  slug                 String
+  shortDescription     String
+  objective            String
+  quickExplanation     String
+  detailedExplanation  String
+  analogy              String
+  practicalExample     String
+  guidedExercisePrompt String
+  challengePrompt      String
+  summary              String
+  attentionPoints      String[]
+  difficulty           MissionDifficulty
+  xpReward             Int
+  estimatedMinutes     Int
+  order                Int
+  isDemo               Boolean               @default(true)
+  module               Module                @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  exercises            Exercise[]
+  progress             MissionProgress[]
+  reviews              ReviewSchedule[]
+  skills               MissionSkill[]
+  tags                 MissionTag[]
+  prerequisites        MissionPrerequisite[] @relation("MissionPrerequisites")
+  requiredBy           MissionPrerequisite[] @relation("MissionRequiredBy")
 
   @@unique([moduleId, slug])
   @@index([moduleId])
@@ -339,17 +370,17 @@ model Enrollment {
 }
 
 model MissionProgress {
-  id              String        @id @default(cuid())
-  userId          String
-  missionId       String
-  status          String        @default("NOT_STARTED")
-  masteryStatus   MasteryStatus @default(NOT_STARTED)
-  completedAt     DateTime?
-  lastStudiedAt   DateTime?
-  attemptsCount   Int           @default(0)
-  correctCount    Int           @default(0)
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  mission         Mission       @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  id            String        @id @default(cuid())
+  userId        String
+  missionId     String
+  status        String        @default("NOT_STARTED")
+  masteryStatus MasteryStatus @default(NOT_STARTED)
+  completedAt   DateTime?
+  lastStudiedAt DateTime?
+  attemptsCount Int           @default(0)
+  correctCount  Int           @default(0)
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mission       Mission       @relation(fields: [missionId], references: [id], onDelete: Cascade)
 
   @@unique([userId, missionId])
   @@index([missionId])
@@ -369,18 +400,18 @@ model UserSkillProgress {
 }
 
 model ReviewSchedule {
-  id            String       @id @default(cuid())
-  userId        String
-  missionId     String
-  skillId       String?
-  dueAt         DateTime
-  intervalDays  Int
-  status        ReviewStatus @default(PENDING)
-  createdAt     DateTime     @default(now())
-  completedAt   DateTime?
-  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  mission       Mission      @relation(fields: [missionId], references: [id], onDelete: Cascade)
-  skill         Skill?       @relation(fields: [skillId], references: [id], onDelete: SetNull)
+  id           String       @id @default(cuid())
+  userId       String
+  missionId    String
+  skillId      String?
+  dueAt        DateTime
+  intervalDays Int
+  status       ReviewStatus @default(PENDING)
+  createdAt    DateTime     @default(now())
+  completedAt  DateTime?
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mission      Mission      @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  skill        Skill?       @relation(fields: [skillId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([dueAt])
@@ -433,14 +464,14 @@ model SimulationAttempt {
 }
 
 model SimulationAnswer {
-  id               String             @id @default(cuid())
+  id               String            @id @default(cuid())
   attemptId        String
   exerciseId       String
   selectedOptionId String?
   isCorrect        Boolean
-  attempt          SimulationAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
-  exercise         Exercise           @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
-  selectedOption   ExerciseOption?    @relation(fields: [selectedOptionId], references: [id], onDelete: SetNull)
+  attempt          SimulationAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  exercise         Exercise          @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  selectedOption   ExerciseOption?   @relation(fields: [selectedOptionId], references: [id], onDelete: SetNull)
 }
 
 model XPTransaction {
@@ -520,12 +551,12 @@ model Exam {
 }
 
 model ExamSubject {
-  id       String      @id @default(cuid())
-  examId   String
-  title    String
-  order    Int
-  exam     Exam        @relation(fields: [examId], references: [id], onDelete: Cascade)
-  topics   ExamTopic[]
+  id     String      @id @default(cuid())
+  examId String
+  title  String
+  order  Int
+  exam   Exam        @relation(fields: [examId], references: [id], onDelete: Cascade)
+  topics ExamTopic[]
 }
 
 model ExamTopic {
@@ -546,6 +577,21 @@ model ActivityLog {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+/// Configuração da instituição. É uma linha só, sempre com o id "institution":
+/// o painel do admin cria na primeira leitura e edita dali em diante.
+model InstitutionSettings {
+  id                        String   @id @default("institution")
+  name                      String   @default("Instituto Federal — Campus Demonstrativo")
+  /// Domínio exigido no cadastro quando `requireInstitutionalEmail` está ligado.
+  emailDomain               String   @default("")
+  /// Id do preset de cor (ver appearancePresets): vale como padrão para quem
+  /// ainda não personalizou a aparência.
+  primaryColor              String   @default("violeta")
+  openRegistration          Boolean  @default(true)
+  requireInstitutionalEmail Boolean  @default(false)
+  updatedAt                 DateTime @updatedAt
 }
 
 enum CalendarEventType {
@@ -590,20 +636,20 @@ model StudyNote {
 /// quem calcula o valor "de agora" é src/lib/pet/state.ts, na leitura. Assim o
 /// pet muda com o tempo sem precisar de rotina agendada no servidor.
 model Pet {
-  id           String    @id @default(cuid())
-  userId       String    @unique
-  name         String    @default("Nero")
-  satiety      Int       @default(70)
-  energy       Int       @default(80)
-  affection    Int       @default(60)
-  syncedAt     DateTime  @default(now())
-  lastFedAt    DateTime?
-  lastPlayedAt DateTime?
-  lastPettedAt DateTime?
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  name          String    @default("Nero")
+  satiety       Int       @default(70)
+  energy        Int       @default(80)
+  affection     Int       @default(60)
+  syncedAt      DateTime  @default(now())
+  lastFedAt     DateTime?
+  lastPlayedAt  DateTime?
+  lastPettedAt  DateTime?
   /// Dia "YYYY-MM-DD" do orçamento de petiscos e quantos já saíram nele.
-  treatsDateKey String   @default("")
-  treatsUsed    Int      @default(0)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  treatsDateKey String    @default("")
+  treatsUsed    Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

@@ -7,6 +7,7 @@ import { RoamingPet } from "@/components/pet/roaming-pet";
 import { CalendarDrawer } from "@/components/workspace/calendar-drawer";
 import { StickyNotes } from "@/components/workspace/sticky-notes";
 import { getHomePathForRole } from "@/lib/auth/redirects";
+import { getInstitutionSettings } from "@/server/queries/admin";
 import { getPetOverview } from "@/server/queries/pet";
 import { getWorkspaceData } from "@/server/queries/workspace";
 
@@ -51,11 +52,15 @@ type ProtectedShellProps = {
 
 export async function ProtectedShell({ user, children }: ProtectedShellProps) {
   const accountContext = user.role === "STUDENT" ? "Área do aluno" : `${roleLabels[user.role]} · ${user.email}`;
-  const [{ events, notes }, pet] = await Promise.all([getWorkspaceData(user.id), getPetOverview(user.id)]);
+  const [{ events, notes }, pet, institution] = await Promise.all([
+    getWorkspaceData(user.id),
+    getPetOverview(user.id),
+    getInstitutionSettings()
+  ]);
 
   return (
     <main className="min-h-screen bg-[hsl(var(--app-surface))]">
-      <AppearanceStyle appearance={user.profile?.appearance} />
+      <AppearanceStyle appearance={user.profile?.appearance} institutionPreset={institution.primaryColor} />
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[hsl(var(--app-header)/0.95)] backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 lg:min-h-16 lg:flex-row lg:items-center lg:justify-between lg:py-0">
           <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">

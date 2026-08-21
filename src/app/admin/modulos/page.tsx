@@ -1,3 +1,4 @@
+import type { ModuleApprovalStatus } from "@prisma/client";
 import Link from "next/link";
 
 import { AdminCheckbox, AdminSelect, AdminSubmitButton, AdminTextarea, AdminTextInput } from "@/components/admin/admin-fields";
@@ -11,6 +12,16 @@ import { saveModuleAction } from "@/server/actions/admin";
 import { getAdminModules } from "@/server/queries/admin";
 
 export const dynamic = "force-dynamic";
+
+/// Só o módulo aprovado aparece para o aluno. A fila de aprovação fica na aba
+/// Conteúdo do painel do admin; aqui dá para publicar direto ao editar.
+const approvalLabels: Record<ModuleApprovalStatus, string> = {
+  PENDING: "Pendente",
+  APPROVED: "Aprovado",
+  REJECTED: "Rejeitado"
+};
+
+const approvalOptions = Object.entries(approvalLabels).map(([value, label]) => ({ value, label }));
 
 export default async function AdminModulesPage({
   searchParams
@@ -32,7 +43,7 @@ export default async function AdminModulesPage({
 
       <div className="grid gap-6 xl:grid-cols-[1fr_420px]">
         <AdminDataTable
-          headers={["Módulo", "Trilha", "Ordem", "Status", "Missões", "Ações"]}
+          headers={["Módulo", "Trilha", "Ordem", "Situação", "Status", "Missões", "Ações"]}
           rows={modules.map((item) => [
             <div key="title">
               <p className="font-semibold text-slate-950">{item.title}</p>
@@ -40,6 +51,7 @@ export default async function AdminModulesPage({
             </div>,
             <Badge key="track" variant="outline">{item.track.title}</Badge>,
             item.order,
+            <Badge key="approval" variant="outline">{approvalLabels[item.approvalStatus]}</Badge>,
             <AdminStatusBadge key="demo" active={item.isDemo} trueLabel="Demo" falseLabel="Real" />,
             item._count.missions,
             <Link key="edit" className="font-semibold text-violet-700 hover:text-violet-900" href={`/admin/modulos?edit=${item.id}`}>
@@ -59,6 +71,12 @@ export default async function AdminModulesPage({
             <AdminTextInput label="Slug" name="slug" defaultValue={editing?.slug} />
             <AdminTextarea label="Descrição" name="description" defaultValue={editing?.description} />
             <AdminTextInput label="Ordem" name="order" type="number" defaultValue={editing?.order ?? 1} />
+            <AdminSelect
+              label="Situação"
+              name="approvalStatus"
+              defaultValue={editing?.approvalStatus ?? "PENDING"}
+              options={approvalOptions}
+            />
             <AdminCheckbox label="Demonstrativo" name="isDemo" defaultChecked={editing?.isDemo ?? true} />
             <AdminSubmitButton>{editing ? "Salvar módulo" : "Criar módulo"}</AdminSubmitButton>
           </form>
